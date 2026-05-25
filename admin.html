@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SpiritualShaadi admin panel">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>SpiritualShaadi Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="nav-container">
+      <a class="logo" href="index.html">
+        <span class="logo-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+        <span>SpiritualShaadi Admin</span>
+      </a>
+      <ul class="nav-menu">
+        <li><a class="nav-link" href="index.html"><i class="fa-solid fa-arrow-left"></i> Public Site</a></li>
+      </ul>
+      <div class="mobile-toggle" id="mobile-menu-btn">
+        <i class="fa-solid fa-bars"></i>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="view-section active">
+      <div class="admin-wrapper">
+        <div class="admin-header">
+          <div>
+            <h2>Admin Panel</h2>
+            <p>Update website copy, payment credentials, and membership pricing for the live site.</p>
+          </div>
+          <button class="btn-admin-secondary" id="btn-admin-reset" type="button"><i class="fa-solid fa-rotate-left"></i> Reset Defaults</button>
+        </div>
+
+        <div class="admin-layout">
+          <aside class="admin-side">
+            <button class="admin-tab active" data-admin-tab="content" type="button"><i class="fa-solid fa-pen-to-square"></i> Website Content</button>
+            <button class="admin-tab" data-admin-tab="payments" type="button"><i class="fa-solid fa-credit-card"></i> Payment Settings</button>
+            <button class="admin-tab" data-admin-tab="plans" type="button"><i class="fa-solid fa-gem"></i> Premium Plans</button>
+          </aside>
+
+          <section class="admin-panel active" id="admin-panel-content">
+            <h3>Website Content</h3>
+            <div class="admin-form-grid">
+              <div class="form-group">
+                <label for="admin-brand-name">Brand Name</label>
+                <input type="text" id="admin-brand-name">
+              </div>
+              <div class="form-group">
+                <label for="admin-hero-tagline">Hero Tagline</label>
+                <input type="text" id="admin-hero-tagline">
+              </div>
+              <div class="form-group full-width">
+                <label for="admin-hero-title">Hero Title</label>
+                <input type="text" id="admin-hero-title">
+              </div>
+              <div class="form-group full-width">
+                <label for="admin-hero-description">Hero Description</label>
+                <textarea id="admin-hero-description" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-1-title">Feature 1 Title</label>
+                <input type="text" id="admin-feature-1-title">
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-1-body">Feature 1 Text</label>
+                <textarea id="admin-feature-1-body" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-2-title">Feature 2 Title</label>
+                <input type="text" id="admin-feature-2-title">
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-2-body">Feature 2 Text</label>
+                <textarea id="admin-feature-2-body" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-3-title">Feature 3 Title</label>
+                <input type="text" id="admin-feature-3-title">
+              </div>
+              <div class="form-group">
+                <label for="admin-feature-3-body">Feature 3 Text</label>
+                <textarea id="admin-feature-3-body" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="admin-premium-title">Premium Section Title</label>
+                <input type="text" id="admin-premium-title">
+              </div>
+              <div class="form-group">
+                <label for="admin-premium-description">Premium Section Text</label>
+                <textarea id="admin-premium-description" rows="3"></textarea>
+              </div>
+              <div class="form-group full-width">
+                <label for="admin-footer-description">Footer Description</label>
+                <textarea id="admin-footer-description" rows="3"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-panel" id="admin-panel-payments">
+            <h3>Payment Settings</h3>
+            <div class="admin-form-grid">
+              <div class="form-group">
+                <label for="admin-payment-provider">Payment Provider</label>
+                <select id="admin-payment-provider">
+                  <option value="Razorpay">Razorpay</option>
+                  <option value="Stripe">Stripe</option>
+                  <option value="PayU">PayU</option>
+                  <option value="Cashfree">Cashfree</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="admin-payment-mode">Mode</label>
+                <select id="admin-payment-mode">
+                  <option value="test">Test</option>
+                  <option value="live">Live</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="admin-payment-public-key">Public Key / Merchant ID</label>
+                <input type="text" id="admin-payment-public-key">
+              </div>
+              <div class="form-group">
+                <label for="admin-payment-secret-key">Secret Key</label>
+                <input type="password" id="admin-payment-secret-key">
+              </div>
+              <div class="form-group">
+                <label for="admin-payment-webhook">Webhook Secret</label>
+                <input type="password" id="admin-payment-webhook">
+              </div>
+              <div class="form-group">
+                <label for="admin-payment-currency">Currency</label>
+                <input type="text" id="admin-payment-currency">
+              </div>
+              <div class="form-group full-width">
+                <label for="admin-payment-note">Checkout Note</label>
+                <textarea id="admin-payment-note" rows="3"></textarea>
+              </div>
+            </div>
+            <p class="admin-warning">Secret keys are saved server-side when deployed through the included Coolify server. Keep admin access protected.</p>
+          </section>
+
+          <section class="admin-panel" id="admin-panel-plans">
+            <h3>Premium Plans</h3>
+            <div class="admin-plans-grid">
+              <div class="admin-plan-editor">
+                <h4>Silver</h4>
+                <label for="admin-plan-silver-name">Name</label>
+                <input type="text" id="admin-plan-silver-name">
+                <label for="admin-plan-silver-price">Price</label>
+                <input type="text" id="admin-plan-silver-price">
+                <label for="admin-plan-silver-period">Period</label>
+                <input type="text" id="admin-plan-silver-period">
+              </div>
+              <div class="admin-plan-editor">
+                <h4>Gold</h4>
+                <label for="admin-plan-gold-name">Name</label>
+                <input type="text" id="admin-plan-gold-name">
+                <label for="admin-plan-gold-price">Price</label>
+                <input type="text" id="admin-plan-gold-price">
+                <label for="admin-plan-gold-period">Period</label>
+                <input type="text" id="admin-plan-gold-period">
+              </div>
+              <div class="admin-plan-editor">
+                <h4>Platinum</h4>
+                <label for="admin-plan-platinum-name">Name</label>
+                <input type="text" id="admin-plan-platinum-name">
+                <label for="admin-plan-platinum-price">Price</label>
+                <input type="text" id="admin-plan-platinum-price">
+                <label for="admin-plan-platinum-period">Period</label>
+                <input type="text" id="admin-plan-platinum-period">
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="admin-actions">
+          <span class="admin-save-status" id="admin-save-status">Loading server settings...</span>
+          <button class="btn-admin-primary" id="btn-admin-save" type="button"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

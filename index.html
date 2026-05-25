@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SpiritualShaadi - The premium matrimonial platform connecting souls across India aligned on religion, caste, deities, and spiritual paths.">
+  <title>SpiritualShaadi - Divine Union of Souls</title>
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Premium Header & Navigation -->
+  <header>
+    <div class="nav-container">
+      <div class="logo" id="btn-logo">
+        <span class="logo-icon"><i class="fa-solid fa-heart-pulse"></i></span>
+        <span id="site-logo-text">SpiritualShaadi</span>
+      </div>
+      <ul class="nav-menu">
+        <li><a class="nav-link active" data-view="view-landing"><i class="fa-solid fa-house"></i> Home</a></li>
+        <li><a class="nav-link" data-view="view-dashboard" id="nav-find-matches"><i class="fa-solid fa-magnifying-glass"></i> Search Profiles</a></li>
+        <li><a class="nav-link" data-view="view-requests" id="nav-requests"><i class="fa-solid fa-user-check"></i> Requests</a></li>
+        <li><a class="nav-link" data-view="view-chat" id="nav-chat"><i class="fa-solid fa-comments"></i> Chat</a></li>
+        <li><a class="nav-link" data-view="view-premium"><i class="fa-solid fa-gem"></i> Premium</a></li>
+        <li><a class="nav-link nav-cta" data-view="view-register" id="nav-register"><i class="fa-solid fa-right-to-bracket"></i> Member Login</a></li>
+      </ul>
+      <div class="mobile-toggle" id="mobile-menu-btn">
+        <i class="fa-solid fa-bars"></i>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main>
+
+    <!-- SECTION 1: LANDING PAGE -->
+    <section id="view-landing" class="view-section active">
+      <div class="hero-wrapper">
+        <div class="hero-tagline" id="content-hero-tagline">Where Consciousness Meets Companionship</div>
+        <h1 class="hero-title" id="content-hero-title">Find Your <span>Spiritual Mirror</span> & Evolve Together</h1>
+        <p class="hero-desc" id="content-hero-description">The premium matchmaking destination for seekers aligned on faiths, values, deities, and sacred organizations in India.</p>
+
+        <!-- Quick Search Widget -->
+        <div class="search-widget">
+          <div class="search-field">
+            <label for="quick-gender">I am seeking a</label>
+            <select id="quick-gender">
+              <option value="Female">Spiritual Woman</option>
+              <option value="Male">Spiritual Man</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label for="quick-religion">Following</label>
+            <select id="quick-religion">
+              <option value="all">Any Religion</option>
+              <option value="Hinduism">Hinduism</option>
+              <option value="Islam">Islam</option>
+              <option value="Sikhism">Sikhism</option>
+              <option value="Jainism">Jainism</option>
+              <option value="Christianity">Christianity</option>
+              <option value="Buddhism">Buddhism</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label for="quick-path">Spiritual Path/Org</label>
+            <select id="quick-path">
+              <option value="all">Any Organization</option>
+              <option value="ISKCON">ISKCON</option>
+              <option value="Isha Foundation">Isha Foundation</option>
+              <option value="Vipassana">Vipassana</option>
+              <option value="Art of Living">Art of Living</option>
+              <option value="Sufism">Sufism</option>
+              <option value="Shrimad Rajchandra">Shrimad Rajchandra Path</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label for="quick-diet">Dietary Vows</label>
+            <select id="quick-diet">
+              <option value="all">Any Diet</option>
+              <option value="Sattvic">Strict Sattvic</option>
+              <option value="Vegetarian">Vegetarian</option>
+              <option value="Jain">Jain Vegetarian</option>
+              <option value="Halal">Halal</option>
+            </select>
+          </div>
+          <button id="btn-quick-search"><i class="fa-solid fa-magnifying-glass"></i> Find Matches</button>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="features-grid">
+          <div class="feature-card">
+            <span class="feature-icon"><i class="fa-solid fa-circle-nodes"></i></span>
+            <h3 id="content-feature-1-title">Verified Spiritual Profiles</h3>
+            <p id="content-feature-1-body">Review serious profiles with faith, community, lifestyle, diet, and sadhana details before sending a request.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon"><i class="fa-solid fa-handshake-angle"></i></span>
+            <h3 id="content-feature-2-title">Request First, Chat Later</h3>
+            <p id="content-feature-2-body">Send a connection request first. Private chat opens only after the other member accepts and it becomes a match.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon"><i class="fa-solid fa-shield-halved"></i></span>
+            <h3 id="content-feature-3-title">Focused Match Search</h3>
+            <p id="content-feature-3-body">Search by religion, spiritual path, diet, caste or community, and compatibility score to shortlist relevant members.</p>
+          </div>
+        </div>
+
+        <div class="journey-strip">
+          <button class="journey-item" data-view-shortcut="view-dashboard">
+            <strong id="stat-total-profiles">8</strong>
+            <span>Profiles to search</span>
+          </button>
+          <button class="journey-item" data-view-shortcut="view-requests">
+            <strong id="stat-received-requests">0</strong>
+            <span>Requests received</span>
+          </button>
+          <button class="journey-item" data-view-shortcut="view-requests">
+            <strong id="stat-sent-requests">0</strong>
+            <span>Requests sent</span>
+          </button>
+          <button class="journey-item" data-view-shortcut="view-chat">
+            <strong id="stat-matched-chats">0</strong>
+            <span>Accepted matches</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- SECTION 2: REGISTER / ONBOARDING WIZARD -->
+    <section id="view-register" class="view-section">
+      <div class="auth-wrapper" id="auth-gate">
+        <div class="auth-card">
+          <div class="auth-heading">
+            <span class="auth-eyebrow">Member access</span>
+            <h2>Sign in or create your matrimony profile</h2>
+            <p>Returning members can use mobile, email, or profile ID. New members verify mobile by OTP, create a password, then complete the full profile.</p>
+          </div>
+
+          <div class="auth-mode-toggle" role="tablist" aria-label="Member access mode">
+            <button class="active" id="auth-tab-signin" data-auth-mode="signin" type="button"><i class="fa-solid fa-right-to-bracket"></i> Sign In</button>
+            <button id="auth-tab-signup" data-auth-mode="signup" type="button"><i class="fa-solid fa-user-plus"></i> New Signup</button>
+          </div>
+
+          <form class="auth-form active" id="auth-signin-form" novalidate>
+            <div class="form-group">
+              <label for="signin-identifier">Mobile / Email / Profile ID</label>
+              <input type="text" id="signin-identifier" placeholder="e.g., 9876543210 or SS123456" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="signin-password">Password</label>
+              <div class="password-field">
+                <input type="password" id="signin-password" placeholder="Enter your password" autocomplete="current-password">
+                <button type="button" class="password-toggle" data-password-toggle="signin-password" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+              </div>
+            </div>
+            <div class="auth-row">
+              <label class="check-field" for="signin-remember">
+                <input type="checkbox" id="signin-remember" checked>
+                <span>Keep me signed in</span>
+              </label>
+              <button class="auth-link-button" id="btn-auth-forgot" type="button">Forgot password?</button>
+            </div>
+            <button class="btn-wizard btn-wizard-next auth-submit" id="btn-auth-signin" type="submit"><i class="fa-solid fa-lock-open"></i> Sign In</button>
+          </form>
+
+          <form class="auth-form" id="auth-signup-form" novalidate>
+            <div class="auth-grid auth-grid-two">
+              <div class="form-group">
+                <label for="signup-name">Full Name</label>
+                <input type="text" id="signup-name" placeholder="e.g., Kabir Das" autocomplete="name">
+              </div>
+              <div class="form-group">
+                <label for="signup-mobile">Mobile Number</label>
+                <input type="tel" id="signup-mobile" placeholder="10 digit mobile number" inputmode="numeric" autocomplete="tel">
+              </div>
+              <div class="form-group">
+                <label for="signup-otp">Mobile OTP</label>
+                <div class="otp-field">
+                  <input type="text" id="signup-otp" placeholder="Enter OTP" inputmode="numeric" autocomplete="one-time-code" disabled>
+                  <button class="btn-mini" id="btn-send-signup-otp" type="button"><i class="fa-solid fa-paper-plane"></i> Send OTP</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="signup-email">Email Address</label>
+                <input type="email" id="signup-email" placeholder="name@example.com" autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label for="signup-password">Create Password</label>
+                <div class="password-field">
+                  <input type="password" id="signup-password" placeholder="Minimum 8 characters" autocomplete="new-password">
+                  <button type="button" class="password-toggle" data-password-toggle="signup-password" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                </div>
+              </div>
+              <div class="form-group full-width">
+                <label for="signup-confirm-password">Confirm Password</label>
+                <div class="password-field">
+                  <input type="password" id="signup-confirm-password" placeholder="Re-enter password" autocomplete="new-password">
+                  <button type="button" class="password-toggle" data-password-toggle="signup-confirm-password" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                </div>
+              </div>
+            </div>
+            <label class="check-field auth-terms" for="signup-terms">
+              <input type="checkbox" id="signup-terms">
+              <span>I confirm this profile is for a serious matrimonial purpose.</span>
+            </label>
+            <button class="btn-wizard btn-wizard-next auth-submit" id="btn-auth-signup" type="submit"><i class="fa-solid fa-user-check"></i> Create Account</button>
+          </form>
+
+          <div class="auth-status" id="auth-status">Sign in if you already have an account, or verify your mobile by OTP to create a new account.</div>
+        </div>
+      </div>
+
+      <div class="wizard-wrapper auth-locked" id="onboarding-wizard-wrapper">
+        <div class="auth-session">
+          <span><i class="fa-solid fa-circle-check"></i> Signed in as <strong id="auth-member-label"></strong> <small id="auth-profile-label"></small></span>
+          <button class="btn-clear" id="btn-auth-logout" type="button">Sign Out</button>
+        </div>
+        <div class="wizard-card">
+          <!-- Progress Indicator -->
+          <div class="wizard-progress">
+            <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
+            <div class="progress-step active" data-step="1">1</div>
+            <div class="progress-step" data-step="2">2</div>
+            <div class="progress-step" data-step="3">3</div>
+            <div class="progress-step" data-step="4">4</div>
+          </div>
+
+          <!-- STEP 1: Soul Identity -->
+          <div class="wizard-step active" data-step="1">
+            <h2>Let's Discover Your Soul Identity</h2>
+            <p class="step-subtitle">Tell us about your earthly coordinates and baseline details.</p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="reg-name">Your Full Name</label>
+                <input type="text" id="reg-name" placeholder="e.g., Kabir Das" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-gender">Your Gender</label>
+                <select id="reg-gender">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="reg-age">Your Age</label>
+                <input type="number" id="reg-age" placeholder="e.g., 27" min="18" max="70" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-height">Your Height</label>
+                <select id="reg-height">
+                  <option value="5'4\"">5'4"</option>
+                  <option value="5'5\"">5'5"</option>
+                  <option value="5'6\"">5'6"</option>
+                  <option value="5'7\"">5'7"</option>
+                  <option value="5'8\"">5'8"</option>
+                  <option value="5'9\"">5'9"</option>
+                  <option value="5'10\"">5'10"</option>
+                  <option value="5'11\"">5'11"</option>
+                  <option value="6'0\"">6'0"</option>
+                  <option value="6'1\"">6'1"</option>
+                  <option value="6'2\"">6'2"</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="reg-location">Your Location (City, State)</label>
+                <input type="text" id="reg-location" placeholder="e.g., Rishikesh, UK" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-profession">Your Profession</label>
+                <input type="text" id="reg-profession" placeholder="e.g., Ayurvedic Doctor" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: Spiritual Foundation -->
+          <div class="wizard-step" data-step="2">
+            <h2>Your Spiritual Foundation</h2>
+            <p class="step-subtitle">Select the traditional background and core beliefs that anchor your life.</p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="reg-religion">Religion</label>
+                <select id="reg-religion">
+                  <option value="Hinduism">Hinduism</option>
+                  <option value="Islam">Islam</option>
+                  <option value="Sikhism">Sikhism</option>
+                  <option value="Jainism">Jainism</option>
+                  <option value="Christianity">Christianity</option>
+                  <option value="Buddhism">Buddhism</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="reg-sect">Sect / Denomination</label>
+                <select id="reg-sect">
+                  <!-- Dynamic or general options -->
+                  <option value="Vaishnavism">Vaishnavism</option>
+                  <option value="Shaivism">Shaivism</option>
+                  <option value="Shaktism">Shaktism</option>
+                  <option value="Smartism">Smartism</option>
+                  <option value="Sunni">Sunni</option>
+                  <option value="Shia">Shia</option>
+                  <option value="Sufism">Sufism</option>
+                  <option value="Amritdhari">Amritdhari (Khalsa)</option>
+                  <option value="Sahajdhari">Sahajdhari</option>
+                  <option value="Svetambara">Svetambara</option>
+                  <option value="Digambara">Digambara</option>
+                  <option value="Roman Catholic">Roman Catholic</option>
+                  <option value="Protestant">Protestant</option>
+                  <option value="Theravada">Theravada</option>
+                  <option value="Mahayana">Mahayana</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="reg-caste">Caste / Community</label>
+                <input type="text" id="reg-caste" placeholder="e.g., Brahmin / Jat / Oswal / Syed" required>
+              </div>
+              <div class="form-group">
+                <label for="reg-subcaste">Subcaste (Optional)</label>
+                <input type="text" id="reg-subcaste" placeholder="e.g., Saraswat / Gill / Murtipujaka / Chishti">
+              </div>
+              <div class="form-group full-width">
+                <label for="reg-deity">Primary Deity / Divine Inspiration</label>
+                <input type="text" id="reg-deity" placeholder="e.g., Lord Krishna / Adiyogi / Guru Granth Sahib / Jesus Christ / Lord Mahavira" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: Devotional Lifestyle -->
+          <div class="wizard-step" data-step="3">
+            <h2>Your Devotional Lifestyle & Vows</h2>
+            <p class="step-subtitle">Share your daily routines, practices, and vows that represent your conscious living.</p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="reg-path">Spiritual Path / Organization</label>
+                <select id="reg-path">
+                  <option value="None / Independent Seeker">None / Independent Seeker</option>
+                  <option value="ISKCON (Krishna Consciousness)">ISKCON (Krishna Consciousness)</option>
+                  <option value="Isha Foundation (Inner Engineering)">Isha Foundation (Inner Engineering)</option>
+                  <option value="Vipassana Meditation">Vipassana Meditation</option>
+                  <option value="Art of Living">Art of Living</option>
+                  <option value="Brahmakumaris">Brahmakumaris</option>
+                  <option value="Swadhyay Parivar">Swadhyay Parivar</option>
+                  <option value="Sufi Tariqat">Sufi Tariqat</option>
+                  <option value="Shrimad Rajchandra Path">Shrimad Rajchandra Path</option>
+                  <option value="Soka Gakkai (SGI)">Soka Gakkai (SGI)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="reg-diet">Dietary Practice</label>
+                <select id="reg-diet">
+                  <option value="Strict Sattvic Vegetarian (No Onion/Garlic/Mushroom)">Strict Sattvic Vegetarian (No Onion/Garlic)</option>
+                  <option value="Jain Vegetarian (No Onion/Garlic/Roots)">Jain Vegetarian (No Roots)</option>
+                  <option value="Lacto-Vegetarian">Lacto-Vegetarian (Vegetarian)</option>
+                  <option value="Vegan">Vegan (100% plant-based)</option>
+                  <option value="Halal Non-Vegetarian">Halal Non-Vegetarian</option>
+                  <option value="Non-Vegetarian">Regular Non-Vegetarian</option>
+                </select>
+              </div>
+              <div class="form-group full-width">
+                <label for="reg-sadhana">Daily Sadhana / Spiritual Practice Description</label>
+                <textarea id="reg-sadhana" rows="3" placeholder="e.g., 30 minutes silent mindfulness meditation, daily chanting, chanting early morning Nitnem, attending weekly satsang..." required></textarea>
+              </div>
+              <div class="form-group full-width">
+                <label for="reg-hobbies">Your Spiritual Hobbies / Sacred Activities (Comma separated)</label>
+                <input type="text" id="reg-hobbies" placeholder="e.g., Meditation, Singing Kirtans, Seva at orphanage, Reading Sufi poems">
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 4: Profile Vision & Bio -->
+          <div class="wizard-step" data-step="4">
+            <h2>Complete Your Soul Profile</h2>
+            <p class="step-subtitle">Synthesize your spiritual aspiration and vision for your future companion.</p>
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label for="reg-bio">Your Spiritual Awakening Story & Bio</label>
+                <textarea id="reg-bio" rows="4" placeholder="Share a few words on what spirituality means to you, what triggered your awakening, and what type of divine partner you are seeking..." required></textarea>
+              </div>
+              <div class="form-group full-width">
+                <label for="reg-theme">Select Your Radiant Soul Aura Color</label>
+                <select id="reg-theme">
+                  <option value="from-orange-400 to-amber-600">Saffron Brilliance (Sadhaka / Vaishnav)</option>
+                  <option value="from-purple-500 to-indigo-600">Deep Amethyst (Yogic / Shaiva)</option>
+                  <option value="from-emerald-400 to-teal-600">Emerald Calm (Mystic / Sufi)</option>
+                  <option value="from-blue-400 to-indigo-500">Sapphire Clarity (Mindful / Jain / Buddhist)</option>
+                  <option value="from-pink-400 to-rose-500">Rose Devotion (Pure Heart / Grace)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation controls -->
+          <div class="wizard-nav">
+            <button class="btn-wizard btn-wizard-prev" id="btn-prev" disabled><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn-wizard btn-wizard-next" id="btn-next">Next <i class="fa-solid fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- SECTION 3: DASHBOARD & FILTER ENGINE -->
+    <section id="view-dashboard" class="view-section">
+      <div class="dashboard-container">
+        <!-- Sidebar filters -->
+        <aside class="filter-sidebar">
+          <h3>
+            <span><i class="fa-solid fa-filter"></i> Filters</span>
+            <button class="btn-clear" id="btn-reset-filters">Reset All</button>
+          </h3>
+          <div class="filter-section">
+            <div class="filter-group">
+              <label for="filt-gender">Seeking Gender</label>
+              <select id="filt-gender">
+                <option value="all">Any Gender</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="filt-religion">Religion</label>
+              <select id="filt-religion">
+                <option value="all">Any Religion</option>
+                <option value="Hinduism">Hinduism</option>
+                <option value="Islam">Islam</option>
+                <option value="Sikhism">Sikhism</option>
+                <option value="Jainism">Jainism</option>
+                <option value="Christianity">Christianity</option>
+                <option value="Buddhism">Buddhism</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="filt-path">Spiritual Path / Organization</label>
+              <select id="filt-path">
+                <option value="all">Any Path / Organization</option>
+                <option value="ISKCON">ISKCON Devotee</option>
+                <option value="Isha Foundation">Isha Meditator</option>
+                <option value="Vipassana">Vipassana Practitioner</option>
+                <option value="Sufi">Sufi Chishti/Murid</option>
+                <option value="Shrimad Rajchandra">Shrimad Rajchandra Mission</option>
+                <option value="Swaminarayan">Swaminarayan (BAPS)</option>
+                <option value="Charismatic">Charismatic Renewal</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="filt-diet">Dietary Code</label>
+              <select id="filt-diet">
+                <option value="all">Any Diet</option>
+                <option value="Sattvic">Strict Sattvic Vegetarian</option>
+                <option value="Jain">Jain Vegetarian</option>
+                <option value="Vegetarian">General Vegetarian</option>
+                <option value="Vegan">Vegan</option>
+                <option value="Halal">Halal Non-Vegetarian</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="filt-caste">Caste / Community</label>
+              <select id="filt-caste">
+                <option value="all">Any Caste</option>
+                <option value="Brahmin">Brahmin</option>
+                <option value="Jat">Jat</option>
+                <option value="Oswal">Oswal</option>
+                <option value="Syed">Syed</option>
+                <option value="Syrian Christian">Syrian Christian</option>
+                <option value="Bhutia">Bhutia</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Divine Weights Tool -->
+          <div class="weights-tool">
+            <h4><i class="fa-solid fa-gauge-high"></i> Soul Match Alignment Weight</h4>
+            <p style="font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.8rem;">Adjust compatibility weight metrics below to fine-tune score percentages.</p>
+            <div class="weight-slider">
+              <label for="weight-diet">
+                <span>Dietary Harmony</span>
+                <span id="label-w-diet">35%</span>
+              </label>
+              <input type="range" id="weight-diet" min="10" max="60" value="35">
+            </div>
+            <div class="weight-slider">
+              <label for="weight-path">
+                <span>Organizational Unity</span>
+                <span id="label-w-path">45%</span>
+              </label>
+              <input type="range" id="weight-path" min="10" max="60" value="45">
+            </div>
+            <div class="weight-slider">
+              <label for="weight-practice">
+                <span>Sadhana Congruence</span>
+                <span id="label-w-practice">20%</span>
+              </label>
+              <input type="range" id="weight-practice" min="10" max="60" value="20">
+            </div>
+          </div>
+        </aside>
+
+        <!-- Profile Feed Panel -->
+        <section class="feed-panel">
+          <div class="feed-header">
+            <div>
+              <h2>Search Profiles</h2>
+              <span id="match-count-label">Showing 8 potential candidates</span>
+            </div>
+            <button class="btn-admin-secondary" data-view-shortcut="view-requests"><i class="fa-solid fa-user-check"></i> Requests</button>
+          </div>
+
+          <div class="profile-grid" id="profile-card-container">
+            <!-- Dynamically populated via app.js -->
+          </div>
+        </section>
+      </div>
+    </section>
+
+
+    <!-- SECTION 4: CONNECTION REQUESTS -->
+    <section id="view-requests" class="view-section">
+      <div class="requests-wrapper">
+        <div class="requests-header">
+          <div>
+            <h2>Connection Requests</h2>
+            <p>Accept received requests to create a match. Chat opens only after acceptance.</p>
+          </div>
+          <button class="btn-admin-secondary" data-view-shortcut="view-dashboard"><i class="fa-solid fa-magnifying-glass"></i> Search Profiles</button>
+        </div>
+
+        <div class="requests-grid">
+          <section class="requests-column">
+            <h3><i class="fa-solid fa-inbox"></i> Received Requests</h3>
+            <div class="request-list request-list-large" id="incoming-request-list"></div>
+          </section>
+          <section class="requests-column">
+            <h3><i class="fa-solid fa-paper-plane"></i> Sent Requests</h3>
+            <div class="request-list request-list-large" id="sent-request-list"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- SECTION 5: INTERACTIVE CHAT HUB -->
+    <section id="view-chat" class="view-section">
+      <div class="chat-hub-container">
+        <!-- Sidebar User Matches -->
+        <aside class="chat-sidebar">
+          <div class="chat-sidebar-header">
+            <h2>Matched Chats</h2>
+            <p>Only accepted matches appear here.</p>
+          </div>
+          <ul class="chat-inbox-list" id="inbox-user-list">
+            <!-- Dynamically populated matched chat users -->
+          </ul>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-main">
+          <!-- Placeholder when no conversation is selected -->
+          <div class="chat-main-placeholder" id="chat-placeholder-view">
+            <span class="chat-main-placeholder-icon"><i class="fa-solid fa-handshake"></i></span>
+            <h3>No Accepted Match Selected</h3>
+            <p>Send a connection request from a profile first. Chat becomes available only after the request is accepted.</p>
+          </div>
+
+          <!-- Active Chat Screen -->
+          <div class="chat-pane" id="active-chat-pane">
+            <div class="chat-pane-header">
+              <div class="chat-header-user">
+                <div class="chat-avatar" id="active-chat-avatar">A</div>
+                <div class="chat-header-details">
+                  <div class="chat-header-name" id="active-chat-name">Aarav Sharma</div>
+                  <div class="chat-header-status" id="active-chat-status">Aligned Devotee</div>
+                </div>
+              </div>
+              <div><i class="fa-solid fa-phone" style="color: var(--accent-gold); cursor: pointer; margin-right: 1rem;"></i><i class="fa-solid fa-video" style="color: var(--accent-gold); cursor: pointer;"></i></div>
+            </div>
+
+            <!-- Messages Stream -->
+            <div class="chat-messages-area" id="chat-message-stream">
+              <!-- Dynamically populated message balloons -->
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="typing-indicator" id="chat-typing-indicator">
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+            </div>
+
+            <!-- Chat Send Box -->
+            <div class="chat-input-area">
+              <input type="text" id="chat-user-textbox" placeholder="Type your devotional query... (e.g. Tell me about your sadhana)">
+              <button id="btn-send-chat"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+
+    <!-- SECTION 6: PREMIUM MEMBERSHIP -->
+    <section id="view-premium" class="view-section">
+      <div class="premium-wrapper">
+        <div class="premium-header">
+          <h2 id="content-premium-title">Premium Membership Plans</h2>
+          <p id="content-premium-description">Upgrade to reach more relevant profiles, unlock advanced filters, and receive assisted matchmaking support.</p>
+        </div>
+
+        <div class="pricing-grid">
+          <!-- Silver Tier -->
+          <div class="pricing-card" data-plan-card="silver">
+            <h3 class="tier-name">Silver Seeker</h3>
+            <div class="tier-price">₹1,500 <span>/ 3 Months</span></div>
+            <ul class="tier-features">
+              <li>Up to 25 verified profile direct views</li>
+              <li>Filter matches by precise Dietary Codes</li>
+              <li>Basic Compatibility Score breakdown</li>
+              <li>Initiate chats with up to 5 matches</li>
+            </ul>
+            <button class="btn-pricing" data-plan-action="silver">Choose Silver</button>
+          </div>
+
+          <!-- Gold Tier (Featured) -->
+          <div class="pricing-card featured" data-plan-card="gold">
+            <div class="featured-ribbon">Divine Pick</div>
+            <h3 class="tier-name">Gold Devotee</h3>
+            <div class="tier-price">₹3,500 <span>/ 6 Months</span></div>
+            <ul class="tier-features">
+              <li>Unlimited profile direct views</li>
+              <li>Premium filters for Sect, Castes & Subcastes</li>
+              <li>Access to Spiritual Guru Compatibility advisor</li>
+              <li>Advanced Divine Alignment Weights custom dashboard</li>
+              <li>Simultaneous chat with unlimited matches</li>
+              <li>Sadhana Verification Badge</li>
+            </ul>
+            <button class="btn-pricing" data-plan-action="gold">Choose Gold</button>
+          </div>
+
+          <!-- Platinum Tier -->
+          <div class="pricing-card" data-plan-card="platinum">
+            <h3 class="tier-name">Platinum Soulmate</h3>
+            <div class="tier-price">₹6,000 <span>/ 1 Year</span></div>
+            <ul class="tier-features">
+              <li>All Gold Devotee benefits</li>
+              <li>Personalized spiritual matchmaker counseling</li>
+              <li>Horoscope/Kundali matching reports by verified astrologers</li>
+              <li>Highlight profile to top of search results</li>
+              <li>Exclusive invitations to offline Spiritual Meetups</li>
+            </ul>
+            <button class="btn-pricing" data-plan-action="platinum">Choose Platinum</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- PROFILE DETAILS POPUP MODAL -->
+  <div class="modal-overlay" id="profile-detail-modal">
+    <div class="modal-content">
+      <div class="modal-close" id="btn-modal-close"><i class="fa-solid fa-xmark"></i></div>
+      <div class="modal-hero" id="modal-hero-banner">
+        <div class="modal-avatar" id="modal-avatar-element">K</div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-title-area">
+          <div>
+            <h2 class="modal-name" id="modal-name-text">Kabir Das</h2>
+            <div class="modal-headline" id="modal-path-text">ISKCON Follower | Strictly Sattvic</div>
+          </div>
+          <div class="compatibility-badge" style="position: relative; top: 0; right: 0;">
+            <i class="fa-solid fa-heart"></i> <span id="modal-compatibility-text">95% Match</span>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h3>Spiritual Awakening Bio</h3>
+          <p id="modal-bio-text" style="font-size: 0.95rem; color: var(--text-gray); font-style: italic;">"Meditation is my life anchor..."</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>Divine Alignments & Sadhana</h3>
+          <div class="modal-details-grid">
+            <div class="modal-detail-item"><strong>Religion:</strong> <span id="modal-religion-text">Hinduism</span></div>
+            <div class="modal-detail-item"><strong>Sect:</strong> <span id="modal-sect-text">Vaishnavism</span></div>
+            <div class="modal-detail-item"><strong>Caste / Community:</strong> <span id="modal-caste-text">Brahmin</span></div>
+            <div class="modal-detail-item"><strong>Subcaste:</strong> <span id="modal-subcaste-text">Saraswat</span></div>
+            <div class="modal-detail-item"><strong>Dietary Vow:</strong> <span id="modal-diet-text">Sattvic Vegetarian</span></div>
+            <div class="modal-detail-item"><strong>Primary Deity:</strong> <span id="modal-deity-text">Lord Krishna</span></div>
+            <div class="modal-detail-item" style="grid-column: span 2; margin-top: 0.5rem;">
+              <strong>Daily Sadhana:</strong> <span id="modal-sadhana-text">Chanting, reading Shastras, morning prayers.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h3>Sacred Hobbies & Activities</h3>
+          <div class="modal-hobbies-flex" id="modal-hobbies-container">
+            <!-- Dynamic hobby pills -->
+          </div>
+        </div>
+
+        <div class="modal-footer-actions">
+          <button class="btn-card btn-card-primary" id="modal-btn-chat" style="height: 44px;"><i class="fa-solid fa-user-plus"></i> Send Connection Request</button>
+          <button class="btn-card btn-card-secondary" id="modal-btn-like" style="height: 44px;"><i class="fa-solid fa-heart"></i> Add to Shortlist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Section -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-brand">
+        <h3><i class="fa-solid fa-heart-pulse" style="color: var(--accent-gold);"></i> <span id="content-footer-brand">SpiritualShaadi</span></h3>
+        <p id="content-footer-description">A specialized matrimonial space built for conscious seekers who want a life partner aligned on dharma, devotion, meditation, and family values.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Explore Paths</h4>
+        <ul>
+          <li><a href="#" data-view="view-dashboard" class="footer-nav-link">Hindu Devotees</a></li>
+          <li><a href="#" data-view="view-dashboard" class="footer-nav-link">Sufi Mystics</a></li>
+          <li><a href="#" data-view="view-dashboard" class="footer-nav-link">Khalsa Seekers</a></li>
+          <li><a href="#" data-view="view-dashboard" class="footer-nav-link">Jain Svetambaras</a></li>
+        </ul>
+      </div>
+      <div class="footer-links">
+        <h4>Divine Service</h4>
+        <ul>
+          <li><a href="#" data-view="view-premium" class="footer-nav-link">Membership Plans</a></li>
+          <li><a href="#" data-view="view-register" class="footer-nav-link">Member Login / Signup</a></li>
+          <li><a href="#" data-view="view-landing" class="footer-nav-link">Success Stories</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom" id="content-footer-bottom">
+      &copy; 2026 SpiritualShaadi. Evolving Companionship, Elevating Consciousness. Built for Divine Unions.
+    </div>
+  </footer>
+
+  <!-- App Data & Scripts -->
+  <script src="profiles.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "content": {
+    "brandName": "SpiritualShaadi",
+    "heroTagline": "Where Consciousness Meets Companionship",
+    "heroTitle": "Find Your |Spiritual Mirror| & Evolve Together",
+    "heroDescription": "The premium matchmaking destination for seekers aligned on faiths, values, deities, and sacred organizations in India.",
+    "feature1Title": "Verified Spiritual Profiles",
+    "feature1Body": "Review serious profiles with faith, community, lifestyle, diet, and sadhana details before sending a request.",
+    "feature2Title": "Request First, Chat Later",
+    "feature2Body": "Send a connection request first. Private chat opens only after the other member accepts and it becomes a match.",
+    "feature3Title": "Focused Match Search",
+    "feature3Body": "Search by religion, spiritual path, diet, caste or community, and compatibility score to shortlist relevant members.",
+    "premiumTitle": "Premium Membership Plans",
+    "premiumDescription": "Upgrade to reach more relevant profiles, unlock advanced filters, and receive assisted matchmaking support.",
+    "footerDescription": "A specialized matrimonial space built for conscious seekers who want a life partner aligned on dharma, devotion, meditation, and family values."
+  },
+  "payment": {
+    "provider": "Razorpay",
+    "mode": "test",
+    "publicKey": "",
+    "secretKey": "",
+    "webhookSecret": "",
+    "currency": "INR",
+    "checkoutNote": "Membership payment for SpiritualShaadi premium plan."
+  },
+  "plans": {
+    "silver": {
+      "name": "Silver Seeker",
+      "price": "Rs. 1,500",
+      "period": "/ 3 Months"
+    },
+    "gold": {
+      "name": "Gold Devotee",
+      "price": "Rs. 3,500",
+      "period": "/ 6 Months"
+    },
+    "platinum": {
+      "name": "Platinum Soulmate",
+      "price": "Rs. 6,000",
+      "period": "/ 1 Year"
+    }
+  }
+}

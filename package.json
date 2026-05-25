@@ -1,0 +1,13 @@
+{
+  "name": "spiritualshaadi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SpiritualShaadi matrimony site and admin panel",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check app.js && node --check admin.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
