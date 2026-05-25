@@ -218,6 +218,9 @@ document.addEventListener("DOMContentLoaded", () => {
     adminPanels.forEach(panel => {
       panel.classList.toggle("active", panel.id === `admin-panel-${tabName}`);
     });
+    const adminActions = document.querySelector(".admin-actions");
+    if (adminActions) adminActions.style.display = tabName === "members" ? "none" : "";
+    if (tabName === "members") loadMembers();
   }
 
   function showSavedStatus(text) {
@@ -319,4 +322,124 @@ document.addEventListener("DOMContentLoaded", () => {
 
   populateAdminForm();
   loadServerSettings();
+
+  // -------------------------------------------------------------------------
+  // Members tab
+  // -------------------------------------------------------------------------
+
+  const membersTbody = document.getElementById("admin-members-tbody");
+  const membersStatus = document.getElementById("admin-members-status");
+  const membersSearch = document.getElementById("admin-members-search");
+  const btnMembersRefresh = document.getElementById("btn-admin-members-refresh");
+  let membersCache = [];
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return Number.isFinite(d.getTime()) ? d.toLocaleDateString() : "";
+  }
+
+  function renderMembers(rows) {
+    if (!membersTbody) return;
+    membersTbody.innerHTML = "";
+    if (rows.length === 0) {
+      membersTbody.innerHTML = `<tr><td colspan="8" class="admin-members-empty">No members found.</td></tr>`;
+      return;
+    }
+    rows.forEach(account => {
+      const p = account.profile || {};
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><code>${escapeHtml(account.profileId)}</code></td>
+        <td>${escapeHtml(p.name || account.name || "")}</td>
+        <td>${escapeHtml(p.gender || "")}</td>
+        <td>${escapeHtml(account.mobile || "")}</td>
+        <td>${escapeHtml(account.email || "")}</td>
+        <td>${escapeHtml(account.kind || "")}</td>
+        <td>${escapeHtml(formatDate(account.createdAt))}</td>
+        <td class="admin-members-actions">
+          <button class="btn-admin-secondary admin-member-view" data-id="${escapeHtml(account.id)}" type="button"><i class="fa-solid fa-eye"></i></button>
+          <button class="btn-admin-secondary admin-member-delete" data-id="${escapeHtml(account.id)}" type="button"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      `;
+      membersTbody.appendChild(tr);
+    });
+    membersTbody.querySelectorAll(".admin-member-view").forEach(btn => {
+      btn.addEventListener("click", () => viewMember(btn.getAttribute("data-id")));
+    });
+    membersTbody.querySelectorAll(".admin-member-delete").forEach(btn => {
+      btn.addEventListener("click", () => deleteMember(btn.getAttribute("data-id")));
+    });
+  }
+
+  function applyMembersFilter() {
+    if (!membersSearch) { renderMembers(membersCache); return; }
+    const term = membersSearch.value.trim().toLowerCase();
+    if (!term) { renderMembers(membersCache); return; }
+    const filtered = membersCache.filter(a => {
+      const haystack = [
+        a.profileId, a.name, a.mobile, a.email,
+        a.profile && a.profile.name, a.profile && a.profile.gender
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(term);
+    });
+    renderMembers(filtered);
+  }
+
+  async function loadMembers() {
+    if (!membersStatus || !membersTbody) return;
+    membersStatus.textContent = "Loading registered members...";
+    try {
+      const response = await fetch("/api/admin/accounts", {
+        cache: "no-store",
+        credentials: "same-origin"
+      });
+      if (!response.ok) throw new Error(`Request failed with ${response.status}`);
+      const data = await response.json();
+      membersCache = Array.isArray(data.accounts) ? data.accounts : [];
+      const realCount = membersCache.filter(a => a.kind === "real").length;
+      const seedCount = membersCache.length - realCount;
+      membersStatus.textContent = `${membersCache.length} members (${realCount} registered, ${seedCount} seeded samples).`;
+      applyMembersFilter();
+    } catch (error) {
+      console.warn("Unable to load members", error);
+      membersStatus.textContent = "Could not load members. Check the server connection.";
+      membersTbody.innerHTML = "";
+    }
+  }
+
+  function viewMember(accountId) {
+    const account = membersCache.find(a => a.id === accountId);
+    if (!account) return;
+    alert(JSON.stringify(account, null, 2));
+  }
+
+  async function deleteMember(accountId) {
+    const account = membersCache.find(a => a.id === accountId);
+    if (!account) return;
+    const name = (account.profile && account.profile.name) || account.name || account.profileId;
+    if (!confirm(`Delete member "${name}" (${account.profileId})? This removes their account, all their requests and chat history. This cannot be undone.`)) return;
+    try {
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(accountId)}`, {
+        method: "DELETE",
+        credentials: "same-origin"
+      });
+      if (!response.ok) throw new Error(`Request failed with ${response.status}`);
+      await loadMembers();
+    } catch (error) {
+      alert(error.message || "Could not delete member.");
+    }
+  }
+
+  if (membersSearch) membersSearch.addEventListener("input", applyMembersFilter);
+  if (btnMembersRefresh) btnMembersRefresh.addEventListener("click", loadMembers);
 });

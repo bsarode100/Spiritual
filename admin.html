@@ -41,6 +41,7 @@
             <button class="admin-tab active" data-admin-tab="content" type="button"><i class="fa-solid fa-pen-to-square"></i> Website Content</button>
             <button class="admin-tab" data-admin-tab="payments" type="button"><i class="fa-solid fa-credit-card"></i> Payment Settings</button>
             <button class="admin-tab" data-admin-tab="plans" type="button"><i class="fa-solid fa-gem"></i> Premium Plans</button>
+            <button class="admin-tab" data-admin-tab="members" type="button"><i class="fa-solid fa-users"></i> Members</button>
           </aside>
 
           <section class="admin-panel active" id="admin-panel-content">
@@ -174,6 +175,32 @@
                 <label for="admin-plan-platinum-period">Period</label>
                 <input type="text" id="admin-plan-platinum-period">
               </div>
+            </div>
+          </section>
+
+          <section class="admin-panel" id="admin-panel-members">
+            <h3>Registered Members</h3>
+            <p class="admin-warning" id="admin-members-status">Loading registered members...</p>
+            <div class="admin-members-controls">
+              <input type="search" id="admin-members-search" placeholder="Search by name, mobile, email or profile ID">
+              <button class="btn-admin-secondary" id="btn-admin-members-refresh" type="button"><i class="fa-solid fa-rotate"></i> Refresh</button>
+            </div>
+            <div class="admin-members-table-wrap">
+              <table class="admin-members-table">
+                <thead>
+                  <tr>
+                    <th>Profile ID</th>
+                    <th>Name</th>
+                    <th>Gender</th>
+                    <th>Mobile</th>
+                    <th>Email</th>
+                    <th>Type</th>
+                    <th>Joined</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="admin-members-tbody"></tbody>
+              </table>
             </div>
           </section>
         </div>

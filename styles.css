@@ -1927,6 +1927,77 @@ main {
   border: 1px solid rgba(221, 107, 32, 0.18);
 }
 
+.admin-members-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.admin-members-controls input[type="search"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-gold);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.admin-members-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-gold);
+  border-radius: 12px;
+}
+
+.admin-members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-members-table th,
+.admin-members-table td {
+  padding: 0.7rem 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(221, 107, 32, 0.12);
+  vertical-align: middle;
+}
+
+.admin-members-table th {
+  background: rgba(221, 107, 32, 0.06);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.admin-members-table tbody tr:hover {
+  background: rgba(221, 107, 32, 0.04);
+}
+
+.admin-members-table code {
+  background: rgba(221, 107, 32, 0.1);
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.admin-members-actions {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.admin-members-actions .btn-admin-secondary {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.admin-members-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+}
+
 .admin-actions {
   margin-top: 1.5rem;
   padding: 1rem;

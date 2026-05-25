@@ -1,17 +1,9 @@
-// SpiritualShaadi - Core Application Script
+// SpiritualShaadi - Core Application Script (server-backed)
 
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEYS = {
-    connections: "spiritualShaadi.connections.v2",
     adminSettings: "spiritualShaadi.adminSettings.v1",
-    authSession: "spiritualShaadi.authSession.v2",
-    accounts: "spiritualShaadi.accounts.v1"
-  };
-
-  const DEFAULT_CONNECTIONS = {
-    matched: [],
-    incoming: [],
-    sent: []
+    likedProfiles: "spiritualShaadi.shortlist.v1"
   };
 
   const DEFAULT_ADMIN_SETTINGS = {
@@ -51,30 +43,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const raw = localStorage.getItem(key);
       return raw ? JSON.parse(raw) : fallback;
     } catch (error) {
-      console.warn(`Unable to read ${key} from localStorage`, error);
+      console.warn(`Unable to read ${key}`, error);
       return fallback;
     }
   }
 
   function writeJsonToStorage(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.warn(`Unable to save ${key} to localStorage`, error);
-    }
-  }
-
-  function isHttpRuntime() {
-    return window.location.protocol === "http:" || window.location.protocol === "https:";
-  }
-
-  function removeJsonFromStorage(key) {
-    try {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    } catch (error) {
-      console.warn(`Unable to remove ${key} from browser storage`, error);
-    }
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (error) { console.warn(`Unable to save ${key}`, error); }
   }
 
   function deepMerge(defaults, override = {}) {
@@ -96,91 +72,58 @@ document.addEventListener("DOMContentLoaded", () => {
     return merged;
   }
 
-  function buildConnectionState() {
-    const saved = readJsonFromStorage(STORAGE_KEYS.connections, DEFAULT_CONNECTIONS);
-    const merged = deepMerge(DEFAULT_CONNECTIONS, saved);
-    return {
-      matched: new Set(merged.matched || []),
-      incoming: new Set(merged.incoming || []),
-      sent: new Set(merged.sent || [])
+  // ---------------------------------------------------------------------------
+  // API client
+  // ---------------------------------------------------------------------------
+
+  async function api(path, { method = "GET", body, headers = {}, signal } = {}) {
+    const init = {
+      method,
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { ...headers },
+      signal
     };
-  }
-
-  function loadAccounts() {
-    const saved = readJsonFromStorage(STORAGE_KEYS.accounts, []);
-    if (!Array.isArray(saved)) return [];
-
-    return saved.map(account => ({
-      id: account.id,
-      profileId: account.profileId,
-      name: account.name || "",
-      mobile: account.mobile || "",
-      mobileVerified: Boolean(account.mobileVerified),
-      mobileVerifiedAt: account.mobileVerifiedAt || null,
-      email: account.email || "",
-      passwordHash: account.passwordHash || "",
-      createdAt: account.createdAt || new Date().toISOString(),
-      profile: account.profile || null
-    })).filter(account => account.id && account.profileId && account.passwordHash);
-  }
-
-  function readAuthSession() {
-    const localSession = readJsonFromStorage(STORAGE_KEYS.authSession, {});
-    if (localSession.accountId) return localSession;
-
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEYS.authSession);
-      return raw ? JSON.parse(raw) : {};
-    } catch (error) {
-      console.warn("Unable to read auth session from sessionStorage", error);
-      return {};
+    if (body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = typeof body === "string" ? body : JSON.stringify(body);
     }
+    const response = await fetch(path, init);
+    let data = null;
+    const text = await response.text();
+    if (text) {
+      try { data = JSON.parse(text); } catch { data = { ok: false, error: text }; }
+    }
+    if (!response.ok) {
+      const err = new Error((data && data.error) || response.statusText || "Request failed");
+      err.status = response.status;
+      err.data = data;
+      throw err;
+    }
+    return data || {};
   }
 
-  function buildAuthState() {
-    const saved = readAuthSession();
-    return {
-      accountId: saved.accountId || null,
-      mode: "signin",
-      signupOtp: {
-        mobile: null,
-        code: null,
-        verified: false
-      }
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
 
-  // --- STATE ---
   const state = {
-    userProfile: null, // Set during onboarding
-    profiles: [...mockProfiles], // Loaded from profiles.js
-    filters: {
-      gender: "all",
-      religion: "all",
-      path: "all",
-      diet: "all",
-      caste: "all"
-    },
-    weights: {
-      diet: 35,
-      path: 45,
-      practice: 20
-    },
-    likedProfiles: new Set(),
-    connections: buildConnectionState(),
-    accounts: loadAccounts(),
-    auth: buildAuthState(),
-    activeChatUserId: null,
-    conversations: {}, // Store messages by profile id
+    me: null,                   // server account, includes profile (may be null)
+    userProfile: null,          // shortcut to me?.profile
+    profiles: [],               // fetched from /api/profiles
+    filters: { gender: "all", religion: "all", path: "all", diet: "all", caste: "all" },
+    weights: { diet: 35, path: 45, practice: 20 },
+    likedProfiles: new Set(readJsonFromStorage(STORAGE_KEYS.likedProfiles, [])),
+    connections: { incoming: [], sent: [], matched: [] },
+    auth: { mode: "signin", signupOtp: { mobile: null, code: null, verified: false } },
+    activeChatUserId: null,     // peer profileId
+    conversations: {},          // peerProfileId -> [{sender, text, time}]
+    lastMessageId: {},          // peerProfileId -> latest fetched message id (polling cursor)
+    chatPollTimer: null,
     onboardingStep: 1,
-    activeChatTab: "matches",
-    adminSettings: deepMerge(
-      DEFAULT_ADMIN_SETTINGS,
-      readJsonFromStorage(STORAGE_KEYS.adminSettings, {})
-    )
+    adminSettings: deepMerge(DEFAULT_ADMIN_SETTINGS, readJsonFromStorage(STORAGE_KEYS.adminSettings, {}))
   };
 
-  // Default fallback user profile (prior to registration)
   const defaultUserProfile = {
     name: "Independent Seeker",
     gender: "Female",
@@ -196,95 +139,10 @@ document.addEventListener("DOMContentLoaded", () => {
     hobbies: "Chanting, reading, meditation"
   };
 
-  function persistConnections() {
-    writeJsonToStorage(STORAGE_KEYS.connections, {
-      matched: [...state.connections.matched],
-      incoming: [...state.connections.incoming],
-      sent: [...state.connections.sent]
-    });
-  }
+  // ---------------------------------------------------------------------------
+  // DOM references
+  // ---------------------------------------------------------------------------
 
-  function getConnectionStatus(profileId) {
-    if (state.connections.matched.has(profileId)) return "matched";
-    if (state.connections.incoming.has(profileId)) return "incoming";
-    if (state.connections.sent.has(profileId)) return "sent";
-    return "none";
-  }
-
-  function getConnectionMeta(profileId) {
-    const status = getConnectionStatus(profileId);
-    const metaByStatus = {
-      matched: {
-        label: "Chat",
-        icon: "fa-comments",
-        className: "btn-card-primary",
-        disabled: false
-      },
-      incoming: {
-        label: "Review Request",
-        icon: "fa-user-check",
-        className: "btn-card-secondary",
-        disabled: false
-      },
-      sent: {
-        label: "Request Sent",
-        icon: "fa-hourglass-half",
-        className: "btn-card-secondary",
-        disabled: true
-      },
-      none: {
-        label: "Send Request",
-        icon: "fa-user-plus",
-        className: "btn-card-secondary",
-        disabled: false
-      }
-    };
-    return metaByStatus[status];
-  }
-
-  function getConnectionBadgeLabel(status) {
-    const labels = {
-      matched: "Matched",
-      incoming: "Request Received",
-      sent: "Request Sent",
-      none: "Request Required"
-    };
-    return labels[status] || labels.none;
-  }
-
-  function updateJourneyStats() {
-    setText(statTotalProfiles, state.profiles.length);
-    setText(statReceivedRequests, state.connections.incoming.size);
-    setText(statSentRequests, state.connections.sent.size);
-    setText(statMatchedChats, state.connections.matched.size);
-  }
-
-  function ensureConversation(profileId) {
-    if (!state.conversations[profileId]) {
-      const candidate = state.profiles.find(p => p.id === profileId);
-      if (!candidate) return;
-      state.conversations[profileId] = [
-        { sender: "them", text: candidate.chatGreeting, time: "Just now" }
-      ];
-    }
-  }
-
-  function clearActiveChat() {
-    state.activeChatUserId = null;
-    chatTypingIndicator.style.display = "none";
-    chatMessageStream.innerHTML = "";
-    activeChatPane.classList.remove("active");
-    chatPlaceholderView.style.display = "flex";
-  }
-
-  // --- INITIALIZE CONVERSATIONS ---
-  state.profiles.forEach(p => {
-    if (state.connections.matched.has(p.id)) {
-      ensureConversation(p.id);
-    }
-  });
-
-  // --- DOM ELEMENTS ---
   const views = document.querySelectorAll(".view-section");
   const navLinks = document.querySelectorAll(".nav-link");
   const footerLinks = document.querySelectorAll(".footer-nav-link");
@@ -293,14 +151,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardContainer = document.getElementById("profile-card-container");
   const matchCountLabel = document.getElementById("match-count-label");
 
-  // Onboarding elements
   const wizardProgressSteps = document.querySelectorAll(".progress-step");
   const wizardProgressBar = document.getElementById("wizard-progress-bar");
   const wizardSteps = document.querySelectorAll(".wizard-step");
   const btnPrev = document.getElementById("btn-prev");
   const btnNext = document.getElementById("btn-next");
 
-  // Filter elements
   const filtGender = document.getElementById("filt-gender");
   const filtReligion = document.getElementById("filt-religion");
   const filtPath = document.getElementById("filt-path");
@@ -308,7 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const filtCaste = document.getElementById("filt-caste");
   const btnResetFilters = document.getElementById("btn-reset-filters");
 
-  // Weights elements
   const weightDiet = document.getElementById("weight-diet");
   const weightPath = document.getElementById("weight-path");
   const weightPractice = document.getElementById("weight-practice");
@@ -316,14 +171,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const labelWPath = document.getElementById("label-w-path");
   const labelWPractice = document.getElementById("label-w-practice");
 
-  // Quick search elements
   const quickGender = document.getElementById("quick-gender");
   const quickReligion = document.getElementById("quick-religion");
   const quickPath = document.getElementById("quick-path");
   const quickDiet = document.getElementById("quick-diet");
   const btnQuickSearch = document.getElementById("btn-quick-search");
 
-  // Auth elements
   const authGate = document.getElementById("auth-gate");
   const onboardingWizardWrapper = document.getElementById("onboarding-wizard-wrapper");
   const authModeButtons = document.querySelectorAll("[data-auth-mode]");
@@ -347,7 +200,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const authMemberLabel = document.getElementById("auth-member-label");
   const authProfileLabel = document.getElementById("auth-profile-label");
 
-  // Chat elements
   const inboxUserList = document.getElementById("inbox-user-list");
   const incomingRequestList = document.getElementById("incoming-request-list");
   const sentRequestList = document.getElementById("sent-request-list");
@@ -361,7 +213,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnSendChat = document.getElementById("btn-send-chat");
   const chatTypingIndicator = document.getElementById("chat-typing-indicator");
 
-  // Modal elements
   const profileDetailModal = document.getElementById("profile-detail-modal");
   const btnModalClose = document.getElementById("btn-modal-close");
   const modalHeroBanner = document.getElementById("modal-hero-banner");
@@ -381,7 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const modalBtnChat = document.getElementById("modal-btn-chat");
   const modalBtnLike = document.getElementById("modal-btn-like");
 
-  // Content setting targets
   const siteLogoText = document.getElementById("site-logo-text");
   const contentHeroTagline = document.getElementById("content-hero-tagline");
   const contentHeroTitle = document.getElementById("content-hero-title");
@@ -402,72 +252,128 @@ document.addEventListener("DOMContentLoaded", () => {
   const statSentRequests = document.getElementById("stat-sent-requests");
   const statMatchedChats = document.getElementById("stat-matched-chats");
 
-  // Mobile menu
   const mobileMenuBtn = document.getElementById("mobile-menu-btn");
   const navMenu = document.querySelector(".nav-menu");
 
-  // --- VIEW NAVIGATION ENGINE ---
+  // ---------------------------------------------------------------------------
+  // Utilities
+  // ---------------------------------------------------------------------------
+
+  function setText(element, value) { if (element) element.textContent = value || ""; }
+
+  function setValue(id, value) {
+    const element = document.getElementById(id);
+    if (element && value !== undefined && value !== null) element.value = value;
+  }
+
+  function normalizeMobile(value) { return String(value || "").replace(/\D/g, ""); }
+  function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
+  function normalizeIdentifier(value) { return String(value || "").trim().toLowerCase(); }
+  function isValidEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value)); }
+  function isValidPassword(value) { return String(value || "").length >= 8; }
+
+  function setFieldError(field, hasError) {
+    if (!field) return;
+    field.classList.toggle("field-error", hasError);
+  }
+
+  function persistLiked() {
+    writeJsonToStorage(STORAGE_KEYS.likedProfiles, [...state.likedProfiles]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Connection lookups (driven by server state)
+  // ---------------------------------------------------------------------------
+
+  function allConnections() {
+    return [...state.connections.matched, ...state.connections.incoming, ...state.connections.sent];
+  }
+
+  function getConnectionStatus(profileId) {
+    if (state.connections.matched.some(c => c.peer && c.peer.profileId === profileId)) return "matched";
+    if (state.connections.incoming.some(c => c.peer && c.peer.profileId === profileId)) return "incoming";
+    if (state.connections.sent.some(c => c.peer && c.peer.profileId === profileId)) return "sent";
+    return "none";
+  }
+
+  function getConnectionByPeer(profileId) {
+    return allConnections().find(c => c.peer && c.peer.profileId === profileId) || null;
+  }
+
+  function getConnectionMeta(profileId) {
+    const status = getConnectionStatus(profileId);
+    const metaByStatus = {
+      matched:  { label: "Chat",            icon: "fa-comments",       className: "btn-card-primary",   disabled: false },
+      incoming: { label: "Review Request",  icon: "fa-user-check",     className: "btn-card-secondary", disabled: false },
+      sent:     { label: "Request Sent",    icon: "fa-hourglass-half", className: "btn-card-secondary", disabled: true },
+      none:     { label: "Send Request",    icon: "fa-user-plus",      className: "btn-card-secondary", disabled: false }
+    };
+    return metaByStatus[status];
+  }
+
+  function getConnectionBadgeLabel(status) {
+    return {
+      matched: "Matched",
+      incoming: "Request Received",
+      sent: "Request Sent",
+      none: "Request Required"
+    }[status] || "Request Required";
+  }
+
+  function updateJourneyStats() {
+    setText(statTotalProfiles, state.profiles.length);
+    setText(statReceivedRequests, state.connections.incoming.length);
+    setText(statSentRequests, state.connections.sent.length);
+    setText(statMatchedChats, state.connections.matched.length);
+  }
+
+  // ---------------------------------------------------------------------------
+  // View routing
+  // ---------------------------------------------------------------------------
+
   function switchView(viewId) {
     views.forEach(section => {
       section.classList.remove("active");
-      if (section.id === viewId) {
-        section.classList.add("active");
-      }
+      if (section.id === viewId) section.classList.add("active");
     });
-
-    // Update Nav bar highlighting
     navLinks.forEach(link => {
       link.classList.remove("active");
-      if (link.getAttribute("data-view") === viewId) {
-        link.classList.add("active");
-      }
+      if (link.getAttribute("data-view") === viewId) link.classList.add("active");
     });
 
-    // Reset mobile navigation if open
     navMenu.classList.remove("mobile-open");
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // Handle view specific initializations
+    // Stop chat polling when leaving chat view
+    if (viewId !== "view-chat") stopChatPolling();
+
     if (viewId === "view-dashboard") {
-      renderProfileFeed();
+      refreshConnections().then(() => renderProfileFeed());
     } else if (viewId === "view-requests") {
-      renderConnectionRequests();
+      refreshConnections().then(() => renderConnectionRequests());
     } else if (viewId === "view-chat") {
-      renderChatSidebar();
-      openFirstMatchedChatIfNeeded();
+      refreshConnections().then(() => {
+        renderChatSidebar();
+        openFirstMatchedChatIfNeeded();
+      });
     } else if (viewId === "view-register") {
       updateAuthUI();
     }
   }
 
   navLinks.forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetView = link.getAttribute("data-view");
-      switchView(targetView);
-    });
+    link.addEventListener("click", e => { e.preventDefault(); switchView(link.getAttribute("data-view")); });
   });
-
   footerLinks.forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetView = link.getAttribute("data-view");
-      switchView(targetView);
-    });
+    link.addEventListener("click", e => { e.preventDefault(); switchView(link.getAttribute("data-view")); });
   });
-
   document.querySelectorAll("[data-view-shortcut]").forEach(button => {
-    button.addEventListener("click", () => {
-      switchView(button.getAttribute("data-view-shortcut"));
-    });
+    button.addEventListener("click", () => switchView(button.getAttribute("data-view-shortcut")));
   });
-
   logoBtn.addEventListener("click", () => switchView("view-landing"));
 
-  // Mobile hamburger toggle
   mobileMenuBtn.addEventListener("click", () => {
     navMenu.classList.toggle("mobile-open");
-    // Simple visual responsive transition logic
     if (navMenu.classList.contains("mobile-open")) {
       navMenu.style.display = "flex";
       navMenu.style.flexDirection = "column";
@@ -484,97 +390,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  function normalizeMobile(value) {
-    return String(value || "").replace(/\D/g, "");
-  }
-
-  function normalizeEmail(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function normalizeIdentifier(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function isValidEmail(value) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
-  }
-
-  function isValidPassword(value) {
-    return String(value || "").length >= 8;
-  }
-
-  function makeAccountId() {
-    return `acct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function createProfileId() {
-    let profileId = "";
-    do {
-      profileId = `SS${Math.floor(100000 + Math.random() * 900000)}`;
-    } while (state.accounts.some(account => account.profileId === profileId));
-    return profileId;
-  }
-
-  function hashPassword(password, salt) {
-    // Static demo only. Production auth must hash and verify passwords on a server.
-    const input = `${salt}:${password}`;
-    let hash = 2166136261;
-    for (let index = 0; index < input.length; index++) {
-      hash ^= input.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-    }
-    return `local-fnv1a:${(hash >>> 0).toString(16)}`;
-  }
-
-  function persistAccounts() {
-    writeJsonToStorage(STORAGE_KEYS.accounts, state.accounts);
-  }
-
-  function getAccountById(accountId) {
-    return state.accounts.find(account => account.id === accountId) || null;
-  }
-
-  function getActiveAccount() {
-    return getAccountById(state.auth.accountId);
-  }
-
-  function findAccountByIdentifier(identifier) {
-    const normalized = normalizeIdentifier(identifier);
-    const mobile = normalizeMobile(identifier);
-    if (!normalized && !mobile) return null;
-
-    return state.accounts.find(account => {
-      const accountMobile = normalizeMobile(account.mobile);
-      const accountEmail = normalizeEmail(account.email);
-      const accountProfileId = normalizeIdentifier(account.profileId);
-
-      return (
-        (mobile && accountMobile === mobile) ||
-        (normalized && accountEmail === normalized) ||
-        (normalized && accountProfileId === normalized)
-      );
-    }) || null;
-  }
-
-  function getAccountDisplayName(account) {
-    return account?.profile?.name || account?.name || account?.email || account?.mobile || "Member";
-  }
-
-  function persistAuthSession(remember = true) {
-    const session = { accountId: state.auth.accountId };
-    try {
-      if (remember) {
-        localStorage.setItem(STORAGE_KEYS.authSession, JSON.stringify(session));
-        sessionStorage.removeItem(STORAGE_KEYS.authSession);
-      } else {
-        sessionStorage.setItem(STORAGE_KEYS.authSession, JSON.stringify(session));
-        localStorage.removeItem(STORAGE_KEYS.authSession);
-      }
-    } catch (error) {
-      console.warn("Unable to save auth session", error);
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Auth: signup / signin / logout / session hydration
+  // ---------------------------------------------------------------------------
 
   function showAuthStatus(message, type = "info") {
     authStatus.textContent = message;
@@ -598,120 +416,78 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  function setFieldError(field, hasError) {
-    if (!field) return;
-    field.classList.toggle("field-error", hasError);
-  }
-
   function clearAuthFieldErrors() {
-    [
-      signinIdentifierInput,
-      signinPasswordInput,
-      signupNameInput,
-      signupMobileInput,
-      signupOtpInput,
-      signupEmailInput,
-      signupPasswordInput,
-      signupConfirmPasswordInput
-    ].forEach(field => setFieldError(field, false));
+    [signinIdentifierInput, signinPasswordInput, signupNameInput, signupMobileInput,
+      signupOtpInput, signupEmailInput, signupPasswordInput, signupConfirmPasswordInput]
+      .forEach(field => setFieldError(field, false));
   }
 
-  function hydrateSessionAccount() {
-    const account = getActiveAccount();
-    if (!account) {
-      state.auth.accountId = null;
-      state.userProfile = null;
-      removeJsonFromStorage(STORAGE_KEYS.authSession);
+  function applyAccountFromServer(account) {
+    state.me = account;
+    state.userProfile = account ? account.profile || null : null;
+    if (state.userProfile) populateOnboardingForm(state.userProfile);
+    else if (account) prefillAccountBasics(account);
+  }
+
+  async function refreshMe() {
+    try {
+      const data = await api("/api/me");
+      applyAccountFromServer(data.account);
+    } catch (error) {
+      if (error.status !== 401) console.warn("refreshMe failed:", error.message);
+      applyAccountFromServer(null);
+    }
+  }
+
+  async function refreshConnections() {
+    if (!state.me) {
+      state.connections = { incoming: [], sent: [], matched: [] };
       return;
     }
-
-    state.userProfile = account.profile || null;
-    if (account.profile) {
-      populateOnboardingForm(account.profile);
-    } else {
-      prefillAccountBasics(account);
+    try {
+      const data = await api("/api/connections");
+      state.connections = {
+        incoming: data.incoming || [],
+        sent: data.sent || [],
+        matched: data.matched || []
+      };
+    } catch (error) {
+      if (error.status !== 401) console.warn("refreshConnections failed:", error.message);
+      state.connections = { incoming: [], sent: [], matched: [] };
     }
+    updateJourneyStats();
   }
 
-  function signInAccount(account, remember = true) {
-    state.auth.accountId = account.id;
-    state.userProfile = account.profile || null;
-    persistAuthSession(remember);
-    hydrateSessionAccount();
-    updateAuthUI();
-  }
-
-  function clearAuthSession() {
-    state.auth.accountId = null;
-    state.userProfile = null;
-    removeJsonFromStorage(STORAGE_KEYS.authSession);
-    signinIdentifierInput.value = "";
-    signinPasswordInput.value = "";
-    setAuthMode("signin");
-    updateAuthUI();
-  }
-
-  function updateAuthUI() {
-    const account = getActiveAccount();
-    const isSignedIn = Boolean(account);
-
-    authGate.style.display = isSignedIn ? "none" : "block";
-    onboardingWizardWrapper.classList.toggle("auth-locked", !isSignedIn);
-    authMemberLabel.textContent = isSignedIn ? getAccountDisplayName(account) : "";
-    authProfileLabel.textContent = isSignedIn ? `Profile ID: ${account.profileId}` : "";
-    if (navRegisterLink) {
-      navRegisterLink.innerHTML = isSignedIn
-        ? `<i class="fa-solid fa-id-card"></i> My Profile`
-        : `<i class="fa-solid fa-right-to-bracket"></i> Member Login`;
-    }
-
-    if (isSignedIn) {
-      prefillAccountBasics(account);
-      if (account.profile) populateOnboardingForm(account.profile);
-    }
-  }
-
-  function handleSignin(event) {
+  async function handleSignin(event) {
     event.preventDefault();
     clearAuthFieldErrors();
-
     const identifier = signinIdentifierInput.value;
     const password = signinPasswordInput.value;
     let hasError = false;
+    if (!normalizeIdentifier(identifier)) { setFieldError(signinIdentifierInput, true); hasError = true; }
+    if (!password) { setFieldError(signinPasswordInput, true); hasError = true; }
+    if (hasError) { showAuthStatus("Enter your login ID and password.", "error"); return; }
 
-    if (!normalizeIdentifier(identifier)) {
+    try {
+      const data = await api("/api/auth/login", {
+        method: "POST",
+        body: { identifier, password, remember: signinRememberInput.checked }
+      });
+      applyAccountFromServer(data.account);
+      await refreshConnections();
+      updateAuthUI();
+      if (state.userProfile) switchView("view-dashboard");
+      else showAuthStatus(`Welcome ${displayName(state.me)}. Complete your profile to start matching.`, "success");
+    } catch (error) {
       setFieldError(signinIdentifierInput, true);
-      hasError = true;
-    }
-    if (!password) {
       setFieldError(signinPasswordInput, true);
-      hasError = true;
-    }
-    if (hasError) {
-      showAuthStatus("Enter your login ID and password.", "error");
-      return;
-    }
-
-    const account = findAccountByIdentifier(identifier);
-    if (!account || account.passwordHash !== hashPassword(password, account.id)) {
-      setFieldError(signinIdentifierInput, true);
-      setFieldError(signinPasswordInput, true);
-      showAuthStatus("Login failed. Check your mobile/email/profile ID and password.", "error");
-      return;
-    }
-
-    signInAccount(account, signinRememberInput.checked);
-    if (account.profile) {
-      switchView("view-dashboard");
-    } else {
-      showAuthStatus(`Welcome ${getAccountDisplayName(account)}. Complete your profile to start matching.`, "success");
+      showAuthStatus(error.message || "Login failed.", "error");
     }
   }
 
-  function handleSignup(event) {
+  async function handleSignup(event) {
     event.preventDefault();
     clearAuthFieldErrors();
-
     const name = signupNameInput.value.trim();
     const mobile = normalizeMobile(signupMobileInput.value);
     const otp = signupOtpInput.value.trim();
@@ -720,67 +496,74 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmPassword = signupConfirmPasswordInput.value;
     let hasError = false;
 
-    if (name.length < 2) {
-      setFieldError(signupNameInput, true);
-      hasError = true;
-    }
-    if (mobile.length < 10 || mobile.length > 15) {
-      setFieldError(signupMobileInput, true);
-      hasError = true;
-    }
+    if (name.length < 2) { setFieldError(signupNameInput, true); hasError = true; }
+    if (mobile.length < 10 || mobile.length > 15) { setFieldError(signupMobileInput, true); hasError = true; }
     if (!state.auth.signupOtp.verified || state.auth.signupOtp.mobile !== mobile || otp !== state.auth.signupOtp.code) {
-      setFieldError(signupOtpInput, true);
-      hasError = true;
+      setFieldError(signupOtpInput, true); hasError = true;
     }
-    if (!isValidEmail(email)) {
-      setFieldError(signupEmailInput, true);
-      hasError = true;
-    }
-    if (!isValidPassword(password)) {
-      setFieldError(signupPasswordInput, true);
-      hasError = true;
-    }
-    if (password !== confirmPassword) {
-      setFieldError(signupConfirmPasswordInput, true);
-      hasError = true;
-    }
-    if (!signupTermsInput.checked) {
-      hasError = true;
-    }
+    if (!isValidEmail(email)) { setFieldError(signupEmailInput, true); hasError = true; }
+    if (!isValidPassword(password)) { setFieldError(signupPasswordInput, true); hasError = true; }
+    if (password !== confirmPassword) { setFieldError(signupConfirmPasswordInput, true); hasError = true; }
+    if (!signupTermsInput.checked) { hasError = true; }
     if (hasError) {
       showAuthStatus("Complete all signup fields, verify the mobile OTP, and set an 8 character password.", "error");
       return;
     }
 
-    const duplicate = state.accounts.find(account =>
-      normalizeMobile(account.mobile) === mobile || normalizeEmail(account.email) === email
-    );
-    if (duplicate) {
-      setFieldError(signupMobileInput, normalizeMobile(duplicate.mobile) === mobile);
-      setFieldError(signupEmailInput, normalizeEmail(duplicate.email) === email);
-      showAuthStatus("An account already exists for this mobile number or email. Please sign in.", "error");
-      return;
+    try {
+      const data = await api("/api/auth/signup", {
+        method: "POST",
+        body: { name, mobile, email, password }
+      });
+      applyAccountFromServer(data.account);
+      resetSignupOtp();
+      await refreshConnections();
+      updateAuthUI();
+      showAuthStatus(`Account created. Your Profile ID is ${state.me.profileId}. Complete onboarding to publish your profile.`, "success");
+    } catch (error) {
+      if (error.status === 409) {
+        setFieldError(signupMobileInput, true);
+        setFieldError(signupEmailInput, true);
+      }
+      showAuthStatus(error.message || "Signup failed.", "error");
     }
+  }
 
-    const account = {
-      id: makeAccountId(),
-      profileId: createProfileId(),
-      name,
-      mobile,
-      mobileVerified: true,
-      mobileVerifiedAt: new Date().toISOString(),
-      email,
-      passwordHash: "",
-      createdAt: new Date().toISOString(),
-      profile: null
-    };
-    account.passwordHash = hashPassword(password, account.id);
+  async function handleLogout() {
+    try { await api("/api/auth/logout", { method: "POST" }); }
+    catch (error) { console.warn("Logout failed:", error.message); }
+    applyAccountFromServer(null);
+    state.connections = { incoming: [], sent: [], matched: [] };
+    state.conversations = {};
+    state.lastMessageId = {};
+    state.activeChatUserId = null;
+    stopChatPolling();
+    signinIdentifierInput.value = "";
+    signinPasswordInput.value = "";
+    setAuthMode("signin");
+    updateAuthUI();
+    switchView("view-landing");
+  }
 
-    state.accounts.push(account);
-    persistAccounts();
-    resetSignupOtp();
-    signInAccount(account, true);
-    showAuthStatus(`Account created. Your Profile ID is ${account.profileId}. Complete onboarding to publish your profile.`, "success");
+  function displayName(account) {
+    return (account && (account.profile && account.profile.name)) || (account && account.name) || (account && account.email) || (account && account.mobile) || "Member";
+  }
+
+  function updateAuthUI() {
+    const isSignedIn = Boolean(state.me);
+    authGate.style.display = isSignedIn ? "none" : "block";
+    onboardingWizardWrapper.classList.toggle("auth-locked", !isSignedIn);
+    authMemberLabel.textContent = isSignedIn ? displayName(state.me) : "";
+    authProfileLabel.textContent = isSignedIn ? `Profile ID: ${state.me.profileId}` : "";
+    if (navRegisterLink) {
+      navRegisterLink.innerHTML = isSignedIn
+        ? `<i class="fa-solid fa-id-card"></i> My Profile`
+        : `<i class="fa-solid fa-right-to-bracket"></i> Member Login`;
+    }
+    if (isSignedIn) {
+      prefillAccountBasics(state.me);
+      if (state.userProfile) populateOnboardingForm(state.userProfile);
+    }
   }
 
   function sendSignupOtp() {
@@ -791,20 +574,8 @@ document.addEventListener("DOMContentLoaded", () => {
       showAuthStatus("Enter a valid mobile number before sending OTP.", "error");
       return;
     }
-
-    const duplicate = state.accounts.find(account => normalizeMobile(account.mobile) === mobile);
-    if (duplicate) {
-      setFieldError(signupMobileInput, true);
-      showAuthStatus("This mobile number is already registered. Please sign in.", "error");
-      return;
-    }
-
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    state.auth.signupOtp = {
-      mobile,
-      code: otp,
-      verified: false
-    };
+    state.auth.signupOtp = { mobile, code: otp, verified: false };
     signupOtpInput.disabled = false;
     signupOtpInput.value = "";
     signupOtpInput.focus();
@@ -815,14 +586,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const mobile = normalizeMobile(signupMobileInput.value);
     const otp = signupOtpInput.value.trim();
     const otpState = state.auth.signupOtp;
-
     if (otpState.mobile === mobile && otpState.code && otp === otpState.code) {
       otpState.verified = true;
       setFieldError(signupOtpInput, false);
       showAuthStatus("Mobile number verified. You can create your account now.", "success");
       return;
     }
-
     otpState.verified = false;
     if (otp.length >= 6) {
       setFieldError(signupOtpInput, true);
@@ -831,11 +600,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetSignupOtp() {
-    state.auth.signupOtp = {
-      mobile: null,
-      code: null,
-      verified: false
-    };
+    state.auth.signupOtp = { mobile: null, code: null, verified: false };
     signupOtpInput.value = "";
     signupOtpInput.disabled = true;
     setFieldError(signupOtpInput, false);
@@ -843,13 +608,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleForgotPassword() {
     clearAuthFieldErrors();
-    const account = findAccountByIdentifier(signinIdentifierInput.value);
-    if (!account) {
+    const identifier = signinIdentifierInput.value.trim();
+    if (!identifier) {
       setFieldError(signinIdentifierInput, true);
-      showAuthStatus("Enter your registered mobile, email, or profile ID first. Password reset needs admin verification in this static build.", "error");
+      showAuthStatus("Enter your registered mobile, email, or profile ID first.", "error");
       return;
     }
-    showAuthStatus(`Profile ${account.profileId} found. For production, send a secure reset link by email or SMS from the server.`, "success");
+    showAuthStatus("Password reset is not available yet. Please contact site admin for help.", "error");
   }
 
   function togglePasswordVisibility(button) {
@@ -865,14 +630,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function setValue(id, value) {
-    const element = document.getElementById(id);
-    if (element && value !== undefined && value !== null) element.value = value;
-  }
-
   function prefillAccountBasics(account) {
     const nameInput = document.getElementById("reg-name");
-    if (nameInput && !nameInput.value) nameInput.value = account.name || "";
+    if (nameInput && !nameInput.value) nameInput.value = (account && account.name) || "";
   }
 
   function populateOnboardingForm(profile) {
@@ -908,22 +668,21 @@ document.addEventListener("DOMContentLoaded", () => {
   signupOtpInput.addEventListener("input", verifySignupOtpInput);
   signupMobileInput.addEventListener("input", () => {
     const mobile = normalizeMobile(signupMobileInput.value);
-    if (state.auth.signupOtp.mobile && state.auth.signupOtp.mobile !== mobile) {
-      resetSignupOtp();
-    }
+    if (state.auth.signupOtp.mobile && state.auth.signupOtp.mobile !== mobile) resetSignupOtp();
   });
   btnAuthForgot.addEventListener("click", handleForgotPassword);
-  btnAuthLogout.addEventListener("click", clearAuthSession);
+  btnAuthLogout.addEventListener("click", handleLogout);
 
-  // --- SPIRITUAL COMPATIBILITY ENGINE ---
+  // ---------------------------------------------------------------------------
+  // Compatibility engine (uses session profile, server-supplied candidates)
+  // ---------------------------------------------------------------------------
+
   function computeCompatibilityScore(candidate) {
     const user = state.userProfile || defaultUserProfile;
+    const userDiet = String(user.diet || "").toLowerCase();
+    const candDiet = String(candidate.diet || "").toLowerCase();
 
-    // 1. Dietary Harmony
-    let dietScore = 0;
-    const userDiet = user.diet.toLowerCase();
-    const candDiet = candidate.diet.toLowerCase();
-
+    let dietScore = 60;
     if (userDiet === candDiet) {
       dietScore = 100;
     } else if (
@@ -931,174 +690,112 @@ document.addEventListener("DOMContentLoaded", () => {
       (userDiet.includes("jain") && candDiet.includes("sattvic")) ||
       (userDiet.includes("vegetarian") && candDiet.includes("sattvic")) ||
       (userDiet.includes("vegetarian") && candDiet.includes("jain"))
-    ) {
-      dietScore = 80; // High alignment
-    } else if (
+    ) dietScore = 80;
+    else if (
       (userDiet.includes("non-vegetarian") && !candDiet.includes("non-vegetarian")) ||
       (!userDiet.includes("non-vegetarian") && candDiet.includes("non-vegetarian"))
-    ) {
-      dietScore = 20; // Lower compatibility if meat vows differ
-    } else {
-      dietScore = 60; // Moderate
-    }
+    ) dietScore = 20;
 
-    // 2. Organization / Path Unity
-    let pathScore = 0;
-    const userPath = user.spiritualPath.toLowerCase();
-    const candPath = candidate.spiritualPath.toLowerCase();
-
-    // Check if same organization
-    let userOrg = "none";
-    let candOrg = "none";
+    const userPath = String(user.spiritualPath || "").toLowerCase();
+    const candPath = String(candidate.spiritualPath || "").toLowerCase();
     const orgs = ["iskcon", "isha", "vipassana", "art of living", "brahmakumaris", "sufi", "rajchandra", "swaminarayan", "charismatic"];
-    
+    let userOrg = "none", candOrg = "none";
     orgs.forEach(org => {
       if (userPath.includes(org)) userOrg = org;
       if (candPath.includes(org)) candOrg = org;
     });
 
-    if (userOrg !== "none" && userOrg === candOrg) {
-      pathScore = 100;
-    } else if (user.religion === candidate.religion) {
-      pathScore = 60; // Same base religion, different specific organizations
-    } else {
-      pathScore = 10; // Different spiritual groups entirely
-    }
+    let pathScore = 10;
+    if (userOrg !== "none" && userOrg === candOrg) pathScore = 100;
+    else if (user.religion === candidate.religion) pathScore = 60;
 
-    // 3. Sadhana Congruence (Shared meditation/prayer keywords)
-    let practiceScore = 70; // Base baseline
-    const userSadhana = user.sadhana.toLowerCase();
-    const candSadhana = candidate.sadhana.toLowerCase();
-
+    let practiceScore = 70;
+    const userSadhana = String(user.sadhana || "").toLowerCase();
+    const candSadhana = String(candidate.sadhana || "").toLowerCase();
     const sharedKeywords = ["meditation", "chanting", "yoga", "seva", "rosary", "prayers", "gita", "bible", "dhikr", "namaz"];
     let overlapCount = 0;
-    sharedKeywords.forEach(kw => {
-      if (userSadhana.includes(kw) && candSadhana.includes(kw)) overlapCount++;
-    });
-
+    sharedKeywords.forEach(kw => { if (userSadhana.includes(kw) && candSadhana.includes(kw)) overlapCount++; });
     practiceScore += overlapCount * 10;
     if (practiceScore > 100) practiceScore = 100;
 
-    // Weighted Synthesis
-    const finalScore = Math.round(
-      (dietScore * (state.weights.diet / 100)) +
-      (pathScore * (state.weights.path / 100)) +
-      (practiceScore * (state.weights.practice / 100))
+    return Math.round(
+      dietScore * (state.weights.diet / 100) +
+      pathScore * (state.weights.path / 100) +
+      practiceScore * (state.weights.practice / 100)
     );
-
-    return finalScore;
   }
 
-  // --- ONBOARDING WIZARD ENGINE ---
+  // ---------------------------------------------------------------------------
+  // Onboarding wizard
+  // ---------------------------------------------------------------------------
+
   function updateWizardSteps() {
-    // Update progress steps visual
     wizardProgressSteps.forEach(step => {
       const stepNum = parseInt(step.getAttribute("data-step"));
       step.classList.remove("active", "completed");
-      if (stepNum === state.onboardingStep) {
-        step.classList.add("active");
-      } else if (stepNum < state.onboardingStep) {
-        step.classList.add("completed");
-      }
+      if (stepNum === state.onboardingStep) step.classList.add("active");
+      else if (stepNum < state.onboardingStep) step.classList.add("completed");
     });
-
-    // Update progress bar length
     const percent = ((state.onboardingStep - 1) / (wizardProgressSteps.length - 1)) * 100;
     wizardProgressBar.style.width = `${percent}%`;
-
-    // Show current step panel
     wizardSteps.forEach(step => {
       step.classList.remove("active");
-      if (parseInt(step.getAttribute("data-step")) === state.onboardingStep) {
-        step.classList.add("active");
-      }
+      if (parseInt(step.getAttribute("data-step")) === state.onboardingStep) step.classList.add("active");
     });
-
-    // Manage Buttons disabled/enabled states
-    if (state.onboardingStep === 1) {
-      btnPrev.disabled = true;
-    } else {
-      btnPrev.disabled = false;
-    }
-
+    btnPrev.disabled = state.onboardingStep === 1;
     if (state.onboardingStep === 4) {
-      const account = getActiveAccount();
-      btnNext.innerHTML = `${account?.profile ? "Save Profile" : "Submit Profile"} <i class="fa-solid fa-hands-praying"></i>`;
+      btnNext.innerHTML = `${state.userProfile ? "Save Profile" : "Submit Profile"} <i class="fa-solid fa-hands-praying"></i>`;
     } else {
       btnNext.innerHTML = `Next <i class="fa-solid fa-arrow-right"></i>`;
     }
   }
 
   btnPrev.addEventListener("click", () => {
-    if (state.onboardingStep > 1) {
-      state.onboardingStep--;
-      updateWizardSteps();
-    }
+    if (state.onboardingStep > 1) { state.onboardingStep--; updateWizardSteps(); }
   });
 
   btnNext.addEventListener("click", () => {
-    if (!getActiveAccount()) {
+    if (!state.me) {
       alert("Please sign in or create an account before onboarding.");
       updateAuthUI();
       return;
     }
-
-    // Form fields validation for each step
-    const currentStepFields = document.querySelectorAll(`.wizard-step[data-step="${state.onboardingStep}"] input, .wizard-step[data-step="${state.onboardingStep}"] textarea, .wizard-step[data-step="${state.onboardingStep}"] select`);
+    const currentStepFields = document.querySelectorAll(
+      `.wizard-step[data-step="${state.onboardingStep}"] input, .wizard-step[data-step="${state.onboardingStep}"] textarea, .wizard-step[data-step="${state.onboardingStep}"] select`
+    );
     let isValid = true;
     currentStepFields.forEach(field => {
       let fieldValid = true;
       const value = field.value.trim();
-
-      if (field.hasAttribute("required") && !value) {
-        fieldValid = false;
-      }
-
+      if (field.hasAttribute("required") && !value) fieldValid = false;
       if (field.type === "number" && value) {
         const numericValue = Number(value);
         const min = field.min ? Number(field.min) : null;
         const max = field.max ? Number(field.max) : null;
-        if (!Number.isFinite(numericValue) || (min !== null && numericValue < min) || (max !== null && numericValue > max)) {
-          fieldValid = false;
-        }
+        if (!Number.isFinite(numericValue) || (min !== null && numericValue < min) || (max !== null && numericValue > max)) fieldValid = false;
       }
-
       field.classList.toggle("field-error", !fieldValid);
       if (!fieldValid) isValid = false;
     });
-
     if (!isValid) {
       alert("Please complete the required fields with your spiritual details before proceeding.");
       return;
     }
-
-    if (state.onboardingStep < 4) {
-      state.onboardingStep++;
-      updateWizardSteps();
-    } else {
-      // Step 4 Complete: Save and register profile!
-      registerUserProfile();
-    }
+    if (state.onboardingStep < 4) { state.onboardingStep++; updateWizardSteps(); }
+    else registerUserProfile();
   });
 
-  function registerUserProfile() {
-    const account = getActiveAccount();
-    if (!account) {
+  async function registerUserProfile() {
+    if (!state.me) {
       alert("Please sign in again before saving your profile.");
       updateAuthUI();
       return;
     }
-
-    const regHobbies = document.getElementById("reg-hobbies").value.split(",").map(h => h.trim()).filter(h => h);
-    
-    state.userProfile = {
-      id: `user-${account.profileId.toLowerCase()}`,
-      profileId: account.profileId,
-      mobile: account.mobile,
-      email: account.email,
+    const hobbies = document.getElementById("reg-hobbies").value.split(",").map(h => h.trim()).filter(Boolean);
+    const profile = {
       name: document.getElementById("reg-name").value,
       gender: document.getElementById("reg-gender").value,
-      age: parseInt(document.getElementById("reg-age").value),
+      age: parseInt(document.getElementById("reg-age").value, 10),
       height: document.getElementById("reg-height").value,
       location: document.getElementById("reg-location").value,
       profession: document.getElementById("reg-profession").value,
@@ -1112,62 +809,69 @@ document.addEventListener("DOMContentLoaded", () => {
       sadhana: document.getElementById("reg-sadhana").value,
       bio: document.getElementById("reg-bio").value,
       avatarColor: document.getElementById("reg-theme").value,
-      hobbies: regHobbies.length ? regHobbies : ["Meditation", "Reading scriptures", "Seva"]
+      hobbies: hobbies.length ? hobbies : ["Meditation", "Reading scriptures", "Seva"]
     };
-
-    account.name = state.userProfile.name;
-    account.profile = state.userProfile;
-    persistAccounts();
-    persistAuthSession(true);
-    updateAuthUI();
-    updateWizardSteps();
-
-    alert(`Your profile "${state.userProfile.name}" has been saved successfully. Use Profile ID ${account.profileId}, mobile, or email with your password for your next login.`);
-    
-    // Switch to Dashboard automatically
-    switchView("view-dashboard");
+    try {
+      const data = await api("/api/me/profile", { method: "PUT", body: profile });
+      applyAccountFromServer(data.account);
+      updateAuthUI();
+      updateWizardSteps();
+      alert(`Your profile "${profile.name}" has been saved. Use Profile ID ${state.me.profileId}, mobile, or email with your password for next login.`);
+      switchView("view-dashboard");
+    } catch (error) {
+      alert(error.message || "Could not save profile. Please try again.");
+    }
   }
 
-  // --- FILTERING & RENDER ENGINE ---
-  function renderProfileFeed() {
-    cardContainer.innerHTML = "";
+  // ---------------------------------------------------------------------------
+  // Profile feed (server-backed)
+  // ---------------------------------------------------------------------------
 
-    // Apply Filter State logic
-    const filteredProfiles = state.profiles.filter(p => {
-      // 1. Gender check (Seeking gender is opposite by default or user selected)
-      if (state.filters.gender !== "all" && p.gender !== state.filters.gender) {
-        return false;
-      }
-      // 2. Religion check
-      if (state.filters.religion !== "all" && p.religion !== state.filters.religion) {
-        return false;
-      }
-      // 3. Organization check
-      if (state.filters.path !== "all") {
-        if (!p.spiritualPath.toLowerCase().includes(state.filters.path.toLowerCase())) {
-          return false;
-        }
-      }
-      // 4. Diet check
-      if (state.filters.diet !== "all") {
-        const dietKey = state.filters.diet.toLowerCase();
-        if (!p.diet.toLowerCase().includes(dietKey)) {
-          return false;
-        }
-      }
-      // 5. Caste check
-      if (state.filters.caste !== "all") {
-        if (!p.caste.toLowerCase().includes(state.filters.caste.toLowerCase())) {
-          return false;
-        }
-      }
-      return true;
-    });
+  async function fetchProfiles() {
+    if (!state.me) {
+      state.profiles = [];
+      return;
+    }
+    try {
+      const params = new URLSearchParams();
+      Object.entries(state.filters).forEach(([key, value]) => {
+        if (value && value !== "all") params.set(key, value);
+      });
+      const query = params.toString();
+      const data = await api(`/api/profiles${query ? `?${query}` : ""}`);
+      state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+    } catch (error) {
+      if (error.status !== 401) console.warn("fetchProfiles failed:", error.message);
+      state.profiles = [];
+    }
+    updateJourneyStats();
+  }
 
-    // Update match count badge
-    matchCountLabel.innerText = `Showing ${filteredProfiles.length} potential conscious candidates`;
+  async function renderProfileFeed() {
+    cardContainer.innerHTML = `
+      <div class="empty-feed">
+        <div class="empty-feed-icon"><i class="fa-solid fa-spinner fa-spin"></i></div>
+        <p>Loading aligned souls...</p>
+      </div>
+    `;
 
-    if (filteredProfiles.length === 0) {
+    if (!state.me) {
+      cardContainer.innerHTML = `
+        <div class="empty-feed">
+          <div class="empty-feed-icon"><i class="fa-solid fa-lock"></i></div>
+          <h3>Sign in to discover aligned souls</h3>
+          <p>Create or log in to your member account to view real profiles.</p>
+        </div>
+      `;
+      matchCountLabel.innerText = "Showing 0 potential conscious candidates";
+      return;
+    }
+
+    await fetchProfiles();
+
+    matchCountLabel.innerText = `Showing ${state.profiles.length} potential conscious candidates`;
+
+    if (state.profiles.length === 0) {
       cardContainer.innerHTML = `
         <div class="empty-feed">
           <div class="empty-feed-icon"><i class="fa-solid fa-dove"></i></div>
@@ -1178,20 +882,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Sort profiles by Compatibility Score descending
-    const profilesWithScore = filteredProfiles.map(p => ({
-      ...p,
-      compatibility: computeCompatibilityScore(p)
-    })).sort((a, b) => b.compatibility - a.compatibility);
+    const profilesWithScore = state.profiles
+      .map(p => ({ ...p, compatibility: computeCompatibilityScore(p) }))
+      .sort((a, b) => b.compatibility - a.compatibility);
 
-    // Build Cards
+    cardContainer.innerHTML = "";
     profilesWithScore.forEach(p => {
-      const isLiked = state.likedProfiles.has(p.id);
-      const connectionStatus = getConnectionStatus(p.id);
-      const connectionMeta = getConnectionMeta(p.id);
+      const isLiked = state.likedProfiles.has(p.profileId);
+      const connectionStatus = getConnectionStatus(p.profileId);
+      const connectionMeta = getConnectionMeta(p.profileId);
       const disabledAttribute = connectionMeta.disabled ? "disabled" : "";
-      const firstLetter = p.name.charAt(0);
-      
+      const firstLetter = (p.name || "?").charAt(0);
+
       const card = document.createElement("div");
       card.className = "profile-card";
       card.innerHTML = `
@@ -1199,14 +901,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <i class="fa-solid fa-heart"></i> ${p.compatibility}% Match
         </div>
         <div class="card-header">
-          <div class="avatar-wrapper bg-gradient-to-br ${p.avatarColor}">
-            ${firstLetter}
-          </div>
+          <div class="avatar-wrapper bg-gradient-to-br ${p.avatarColor || ""}">${firstLetter}</div>
           <div class="candidate-basics">
-            <span class="candidate-name">${p.name}</span>
+            <span class="candidate-name">${escapeHtml(p.name)}</span>
             <div class="candidate-meta">
-              <span>${p.age} Yrs • ${p.height}</span>
-              <span><i class="fa-solid fa-location-dot"></i> ${p.location}</span>
+              <span>${p.age || ""} Yrs${p.height ? ` &bull; ${escapeHtml(p.height)}` : ""}</span>
+              <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(p.location || "")}</span>
             </div>
           </div>
         </div>
@@ -1214,26 +914,17 @@ document.addEventListener("DOMContentLoaded", () => {
           <i class="fa-solid ${connectionMeta.icon}"></i> ${getConnectionBadgeLabel(connectionStatus)}
         </div>
         <div class="candidate-path">
-          <div class="path-detail">
-            <strong>Divine Focus:</strong>
-            <span>${p.deity}</span>
-          </div>
-          <div class="path-detail">
-            <strong>Spiritual Org:</strong>
-            <span>${p.spiritualPath}</span>
-          </div>
-          <div class="path-detail">
-            <strong>Caste / Community:</strong>
-            <span>${p.caste} (${p.subcaste})</span>
-          </div>
+          <div class="path-detail"><strong>Divine Focus:</strong><span>${escapeHtml(p.deity || "")}</span></div>
+          <div class="path-detail"><strong>Spiritual Org:</strong><span>${escapeHtml(p.spiritualPath || "")}</span></div>
+          <div class="path-detail"><strong>Caste / Community:</strong><span>${escapeHtml(p.caste || "")} (${escapeHtml(p.subcaste || "N/A")})</span></div>
         </div>
-        <p class="candidate-bio">"${p.bio}"</p>
+        <p class="candidate-bio">"${escapeHtml(p.bio || "")}"</p>
         <div class="card-actions">
-          <button class="btn-card btn-card-primary btn-view-details" data-id="${p.id}"><i class="fa-solid fa-eye"></i> View Profile</button>
-          <button class="btn-card ${connectionMeta.className} btn-connection-action" data-id="${p.id}" ${disabledAttribute}>
+          <button class="btn-card btn-card-primary btn-view-details" data-id="${p.profileId}"><i class="fa-solid fa-eye"></i> View Profile</button>
+          <button class="btn-card ${connectionMeta.className} btn-connection-action" data-id="${p.profileId}" ${disabledAttribute}>
             <i class="fa-solid ${connectionMeta.icon}"></i> ${connectionMeta.label}
           </button>
-          <button class="btn-card-like btn-like-action ${isLiked ? 'liked' : ''}" data-id="${p.id}">
+          <button class="btn-card-like btn-like-action ${isLiked ? "liked" : ""}" data-id="${p.profileId}">
             <i class="fa-solid fa-heart"></i>
           </button>
         </div>
@@ -1241,30 +932,30 @@ document.addEventListener("DOMContentLoaded", () => {
       cardContainer.appendChild(card);
     });
 
-    // Add Action Bindings
     document.querySelectorAll(".btn-view-details").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-id");
-        openProfileModal(id);
-      });
+      btn.addEventListener("click", () => openProfileModal(btn.getAttribute("data-id")));
     });
-
     document.querySelectorAll(".btn-connection-action").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-id");
-        handleConnectionAction(id);
-      });
+      btn.addEventListener("click", () => handleConnectionAction(btn.getAttribute("data-id")));
     });
-
     document.querySelectorAll(".btn-like-action").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-id");
-        toggleShortlist(id, btn);
-      });
+      btn.addEventListener("click", () => toggleShortlist(btn.getAttribute("data-id"), btn));
     });
   }
 
-  // --- FILTER BINDINGS ---
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Filter & weight bindings
+  // ---------------------------------------------------------------------------
+
   function applyFiltersFromSidebar() {
     state.filters.gender = filtGender.value;
     state.filters.religion = filtReligion.value;
@@ -1273,7 +964,6 @@ document.addEventListener("DOMContentLoaded", () => {
     state.filters.caste = filtCaste.value;
     renderProfileFeed();
   }
-
   filtGender.addEventListener("change", applyFiltersFromSidebar);
   filtReligion.addEventListener("change", applyFiltersFromSidebar);
   filtPath.addEventListener("change", applyFiltersFromSidebar);
@@ -1281,117 +971,94 @@ document.addEventListener("DOMContentLoaded", () => {
   filtCaste.addEventListener("change", applyFiltersFromSidebar);
 
   btnResetFilters.addEventListener("click", () => {
-    filtGender.value = "all";
-    filtReligion.value = "all";
-    filtPath.value = "all";
-    filtDiet.value = "all";
-    filtCaste.value = "all";
+    filtGender.value = "all"; filtReligion.value = "all"; filtPath.value = "all"; filtDiet.value = "all"; filtCaste.value = "all";
     applyFiltersFromSidebar();
   });
 
-  // --- DIVINE WEIGHTS INPUT ADJUSTMENTS ---
   function handleWeightSliderChange() {
-    const valDiet = parseInt(weightDiet.value);
-    const valPath = parseInt(weightPath.value);
-    const valPractice = parseInt(weightPractice.value);
-
-    // Sum weights, distribute proportionally to match exactly 100%
-    const total = valDiet + valPath + valPractice;
-    
+    const valDiet = parseInt(weightDiet.value, 10);
+    const valPath = parseInt(weightPath.value, 10);
+    const valPractice = parseInt(weightPractice.value, 10);
+    const total = valDiet + valPath + valPractice || 1;
     state.weights.diet = Math.round((valDiet / total) * 100);
     state.weights.path = Math.round((valPath / total) * 100);
-    state.weights.practice = 100 - (state.weights.diet + state.weights.path); // Make sure it sums up perfectly
-
-    // Update labels
+    state.weights.practice = 100 - (state.weights.diet + state.weights.path);
     labelWDiet.innerText = `${state.weights.diet}%`;
     labelWPath.innerText = `${state.weights.path}%`;
     labelWPractice.innerText = `${state.weights.practice}%`;
-
-    // Re-render feed matches with new alignment percentages
     renderProfileFeed();
   }
-
   weightDiet.addEventListener("input", handleWeightSliderChange);
   weightPath.addEventListener("input", handleWeightSliderChange);
   weightPractice.addEventListener("input", handleWeightSliderChange);
 
-  // --- QUICK SEARCH BINDING ---
   btnQuickSearch.addEventListener("click", () => {
-    // Populate filters based on quick search and route
     state.filters.gender = quickGender.value;
     state.filters.religion = quickReligion.value;
     state.filters.path = quickPath.value;
     state.filters.diet = quickDiet.value;
-
-    // Mirror sidebar UI state
     filtGender.value = quickGender.value;
     filtReligion.value = quickReligion.value;
     filtPath.value = quickPath.value;
     filtDiet.value = quickDiet.value;
-
     switchView("view-dashboard");
   });
 
-  // --- DETAILS MODAL CONTROLLER ---
+  // ---------------------------------------------------------------------------
+  // Modal
+  // ---------------------------------------------------------------------------
+
+  function findProfileById(profileId) {
+    return state.profiles.find(p => p.profileId === profileId) ||
+           (getConnectionByPeer(profileId) ? getConnectionByPeer(profileId).peer : null);
+  }
+
   function openProfileModal(profileId) {
-    const candidate = state.profiles.find(p => p.id === profileId);
+    const candidate = findProfileById(profileId);
     if (!candidate) return;
-
     const compatibility = computeCompatibilityScore(candidate);
-    const firstLetter = candidate.name.charAt(0);
+    const firstLetter = (candidate.name || "?").charAt(0);
 
-    // Header styling matching background gradients
-    modalHeroBanner.className = `modal-hero bg-gradient-to-br ${candidate.avatarColor}`;
-    modalAvatarElement.className = `modal-avatar bg-gradient-to-br ${candidate.avatarColor}`;
+    modalHeroBanner.className = `modal-hero bg-gradient-to-br ${candidate.avatarColor || ""}`;
+    modalAvatarElement.className = `modal-avatar bg-gradient-to-br ${candidate.avatarColor || ""}`;
     modalAvatarElement.innerText = firstLetter;
 
-    // Text populations
-    modalNameText.innerText = candidate.name;
-    modalPathText.innerText = `${candidate.spiritualPath} • ${candidate.diet}`;
+    modalNameText.innerText = candidate.name || "";
+    modalPathText.innerText = `${candidate.spiritualPath || ""} • ${candidate.diet || ""}`;
     modalCompatibilityText.innerText = `${compatibility}% Match`;
-    modalBioText.innerText = `"${candidate.bio}"`;
+    modalBioText.innerText = `"${candidate.bio || ""}"`;
+    modalReligionText.innerText = candidate.religion || "";
+    modalSectText.innerText = candidate.sect || "";
+    modalCasteText.innerText = candidate.caste || "";
+    modalSubcasteText.innerText = candidate.subcaste || "N/A";
+    modalDietText.innerText = candidate.diet || "";
+    modalDeityText.innerText = candidate.deity || "";
+    modalSadhanaText.innerText = candidate.sadhana || "";
 
-    modalReligionText.innerText = candidate.religion;
-    modalSectText.innerText = candidate.sect;
-    modalCasteText.innerText = candidate.caste;
-    modalSubcasteText.innerText = candidate.subcaste;
-    modalDietText.innerText = candidate.diet;
-    modalDeityText.innerText = candidate.deity;
-    modalSadhanaText.innerText = candidate.sadhana;
-
-    // Hobbies loading
     modalHobbiesContainer.innerHTML = "";
-    candidate.hobbies.forEach(hobby => {
+    (candidate.hobbies || []).forEach(hobby => {
       const pill = document.createElement("span");
       pill.className = "hobby-pill";
       pill.innerText = hobby;
       modalHobbiesContainer.appendChild(pill);
     });
 
-    // Shortlist button active state visual representation
-    const isLiked = state.likedProfiles.has(candidate.id);
-    if (isLiked) {
-      modalBtnLike.innerHTML = `<i class="fa-solid fa-heart"></i> Shortlisted`;
-      modalBtnLike.className = "btn-card btn-card-primary";
-    } else {
-      modalBtnLike.innerHTML = `<i class="fa-solid fa-heart"></i> Add to Shortlist`;
-      modalBtnLike.className = "btn-card btn-card-secondary";
-    }
+    const isLiked = state.likedProfiles.has(candidate.profileId);
+    modalBtnLike.innerHTML = isLiked
+      ? `<i class="fa-solid fa-heart"></i> Shortlisted`
+      : `<i class="fa-solid fa-heart"></i> Add to Shortlist`;
+    modalBtnLike.className = isLiked ? "btn-card btn-card-primary" : "btn-card btn-card-secondary";
 
-    updateModalConnectionButton(candidate.id);
+    updateModalConnectionButton(candidate.profileId);
 
     modalBtnLike.onclick = () => {
-      toggleShortlist(candidate.id);
-      // Re-populate modal button state
-      const updatedLike = state.likedProfiles.has(candidate.id);
-      if (updatedLike) {
-        modalBtnLike.innerHTML = `<i class="fa-solid fa-heart"></i> Shortlisted`;
-        modalBtnLike.className = "btn-card btn-card-primary";
-      } else {
-        modalBtnLike.innerHTML = `<i class="fa-solid fa-heart"></i> Add to Shortlist`;
-        modalBtnLike.className = "btn-card btn-card-secondary";
-      }
-      renderProfileFeed(); // Sync card likes in feed
+      toggleShortlist(candidate.profileId);
+      const updatedLike = state.likedProfiles.has(candidate.profileId);
+      modalBtnLike.innerHTML = updatedLike
+        ? `<i class="fa-solid fa-heart"></i> Shortlisted`
+        : `<i class="fa-solid fa-heart"></i> Add to Shortlist`;
+      modalBtnLike.className = updatedLike ? "btn-card btn-card-primary" : "btn-card btn-card-secondary";
+      renderProfileFeed();
     };
 
     profileDetailModal.classList.add("active");
@@ -1402,41 +1069,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const meta = getConnectionMeta(profileId);
     modalBtnChat.disabled = meta.disabled;
     modalBtnChat.className = `btn-card ${meta.className}`;
+    if (status === "matched") modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> Open Chat`;
+    else if (status === "incoming") modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> Accept Request`;
+    else modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> ${meta.label}`;
 
-    if (status === "matched") {
-      modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> Open Chat`;
-    } else if (status === "incoming") {
-      modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> Accept Request`;
-    } else {
-      modalBtnChat.innerHTML = `<i class="fa-solid ${meta.icon}"></i> ${meta.label}`;
-    }
-
-    modalBtnChat.onclick = () => {
-      if (status === "matched") {
-        closeModal();
-        startDirectChat(profileId);
-      } else if (status === "incoming") {
-        closeModal();
-        acceptConnectionRequest(profileId);
-      } else if (status === "sent") {
+    modalBtnChat.onclick = async () => {
+      if (status === "matched") { closeModal(); startDirectChat(profileId); }
+      else if (status === "incoming") { closeModal(); await acceptConnectionRequest(profileId); }
+      else if (status === "sent") {
         alert("Your connection request is waiting for acceptance. Chat will open only after it becomes a match.");
       } else {
-        sendConnectionRequest(profileId);
+        await sendConnectionRequest(profileId);
         updateModalConnectionButton(profileId);
       }
     };
   }
 
-  function closeModal() {
-    profileDetailModal.classList.remove("active");
-  }
-
+  function closeModal() { profileDetailModal.classList.remove("active"); }
   btnModalClose.addEventListener("click", closeModal);
-  profileDetailModal.addEventListener("click", (e) => {
-    if (e.target === profileDetailModal) closeModal();
-  });
+  profileDetailModal.addEventListener("click", e => { if (e.target === profileDetailModal) closeModal(); });
 
-  // Shortlisting toggle helper
   function toggleShortlist(id, btnNode = null) {
     if (state.likedProfiles.has(id)) {
       state.likedProfiles.delete(id);
@@ -1445,118 +1097,184 @@ document.addEventListener("DOMContentLoaded", () => {
       state.likedProfiles.add(id);
       if (btnNode) btnNode.classList.add("liked");
     }
+    persistLiked();
   }
+
+  // ---------------------------------------------------------------------------
+  // Connection actions (server-backed)
+  // ---------------------------------------------------------------------------
 
   function handleConnectionAction(profileId) {
     const status = getConnectionStatus(profileId);
-
-    if (status === "matched") {
-      startDirectChat(profileId);
-      return;
-    }
-
-    if (status === "incoming") {
-      switchView("view-requests");
-      return;
-    }
-
-    if (status === "sent") {
-      alert("Your request is pending. Messages unlock only after the receiver accepts and it becomes a match.");
-      return;
-    }
-
+    if (status === "matched") { startDirectChat(profileId); return; }
+    if (status === "incoming") { switchView("view-requests"); return; }
+    if (status === "sent") { alert("Your request is pending. Messages unlock only after the receiver accepts."); return; }
     sendConnectionRequest(profileId);
   }
 
-  function sendConnectionRequest(profileId) {
-    const candidate = state.profiles.find(p => p.id === profileId);
-    if (!candidate || getConnectionStatus(profileId) !== "none") return;
-
-    state.connections.sent.add(profileId);
-    persistConnections();
-    renderProfileFeed();
-    renderConnectionRequests();
-    alert(`Connection request sent to ${candidate.name}. Chat will unlock only after they accept.`);
+  async function sendConnectionRequest(profileId) {
+    const candidate = findProfileById(profileId) || { name: "this member" };
+    try {
+      await api("/api/connections/request", { method: "POST", body: { toProfileId: profileId } });
+      await refreshConnections();
+      renderProfileFeed();
+      renderConnectionRequests();
+      alert(`Connection request sent to ${candidate.name || "this member"}. Chat unlocks only after they accept.`);
+      // Seed bots auto-accept after ~3s server-side. Refresh shortly to pick that up.
+      setTimeout(() => {
+        refreshConnections().then(() => {
+          renderProfileFeed();
+          renderConnectionRequests();
+        });
+      }, 3500);
+    } catch (error) {
+      alert(error.message || "Could not send request.");
+    }
   }
 
-  function acceptConnectionRequest(profileId) {
-    const candidate = state.profiles.find(p => p.id === profileId);
-    if (!candidate || getConnectionStatus(profileId) !== "incoming") return;
-
-    state.connections.incoming.delete(profileId);
-    state.connections.sent.delete(profileId);
-    state.connections.matched.add(profileId);
-    ensureConversation(profileId);
-    state.conversations[profileId].push({
-      sender: "system",
-      text: `You accepted ${candidate.name}'s connection request. This is now a match.`,
-      time: "Just now"
-    });
-    persistConnections();
-    renderProfileFeed();
-    renderConnectionRequests();
-    startDirectChat(profileId);
+  async function acceptConnectionRequest(profileId) {
+    const conn = getConnectionByPeer(profileId);
+    if (!conn) return;
+    try {
+      await api(`/api/connections/${conn.id}/accept`, { method: "POST" });
+      await refreshConnections();
+      renderProfileFeed();
+      renderConnectionRequests();
+      startDirectChat(profileId);
+    } catch (error) {
+      alert(error.message || "Could not accept request.");
+    }
   }
 
-  function declineConnectionRequest(profileId) {
-    const candidate = state.profiles.find(p => p.id === profileId);
-    if (!candidate || getConnectionStatus(profileId) !== "incoming") return;
-
-    state.connections.incoming.delete(profileId);
-    persistConnections();
-    renderProfileFeed();
-    renderConnectionRequests();
+  async function declineConnectionRequest(profileId) {
+    const conn = getConnectionByPeer(profileId);
+    if (!conn) return;
+    try {
+      await api(`/api/connections/${conn.id}/decline`, { method: "POST" });
+      await refreshConnections();
+      renderProfileFeed();
+      renderConnectionRequests();
+    } catch (error) {
+      alert(error.message || "Could not decline request.");
+    }
   }
 
-  function withdrawConnectionRequest(profileId) {
-    const candidate = state.profiles.find(p => p.id === profileId);
-    if (!candidate || getConnectionStatus(profileId) !== "sent") return;
-
-    state.connections.sent.delete(profileId);
-    persistConnections();
-    renderProfileFeed();
-    renderConnectionRequests();
+  async function withdrawConnectionRequest(profileId) {
+    const conn = getConnectionByPeer(profileId);
+    if (!conn) return;
+    try {
+      await api(`/api/connections/${conn.id}/withdraw`, { method: "POST" });
+      await refreshConnections();
+      renderProfileFeed();
+      renderConnectionRequests();
+    } catch (error) {
+      alert(error.message || "Could not withdraw request.");
+    }
   }
 
-  // --- INTERACTIVE CHAT ENGINE & CHAT BOT MOCKUP ---
+  // ---------------------------------------------------------------------------
+  // Requests view rendering
+  // ---------------------------------------------------------------------------
+
+  function renderConnectionRequests() {
+    const incomingPeers = state.connections.incoming.map(c => c.peer).filter(Boolean);
+    const sentPeers = state.connections.sent.map(c => c.peer).filter(Boolean);
+
+    incomingRequestList.innerHTML = "";
+    sentRequestList.innerHTML = "";
+
+    if (incomingPeers.length === 0) {
+      incomingRequestList.innerHTML = `<div class="request-empty"><i class="fa-solid fa-inbox"></i><span>No received requests.</span></div>`;
+    } else {
+      incomingPeers.forEach(peer => incomingRequestList.appendChild(createRequestItem(peer, "incoming")));
+    }
+
+    if (sentPeers.length === 0) {
+      sentRequestList.innerHTML = `<div class="request-empty"><i class="fa-solid fa-paper-plane"></i><span>No sent requests.</span></div>`;
+    } else {
+      sentPeers.forEach(peer => sentRequestList.appendChild(createRequestItem(peer, "sent")));
+    }
+    updateJourneyStats();
+  }
+
+  function createRequestItem(profile, type) {
+    const item = document.createElement("div");
+    item.className = "request-item";
+    item.innerHTML = `
+      <div class="chat-avatar bg-gradient-to-br ${profile.avatarColor || ""}">${(profile.name || "?").charAt(0)}</div>
+      <div class="request-details">
+        <span class="request-name">${escapeHtml(profile.name || "")}</span>
+        <span class="request-sub">${profile.age || ""} Yrs - ${escapeHtml(profile.spiritualPath || "")}</span>
+      </div>
+      <div class="request-actions"></div>
+    `;
+    const actions = item.querySelector(".request-actions");
+    if (type === "incoming") {
+      const acceptBtn = document.createElement("button");
+      acceptBtn.className = "request-btn accept";
+      acceptBtn.innerHTML = `<i class="fa-solid fa-check"></i>`;
+      acceptBtn.title = "Accept request";
+      acceptBtn.addEventListener("click", () => acceptConnectionRequest(profile.profileId));
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "request-btn decline";
+      declineBtn.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
+      declineBtn.title = "Decline request";
+      declineBtn.addEventListener("click", () => declineConnectionRequest(profile.profileId));
+      actions.appendChild(acceptBtn);
+      actions.appendChild(declineBtn);
+    } else {
+      const pendingBadge = document.createElement("span");
+      pendingBadge.className = "request-pending";
+      pendingBadge.textContent = "Pending";
+      const withdrawBtn = document.createElement("button");
+      withdrawBtn.className = "request-btn decline";
+      withdrawBtn.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
+      withdrawBtn.title = "Withdraw request";
+      withdrawBtn.addEventListener("click", () => withdrawConnectionRequest(profile.profileId));
+      actions.appendChild(pendingBadge);
+      actions.appendChild(withdrawBtn);
+    }
+    return item;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat (server-backed, polled every 5s)
+  // ---------------------------------------------------------------------------
+
+  function clearActiveChat() {
+    state.activeChatUserId = null;
+    chatTypingIndicator.style.display = "none";
+    chatMessageStream.innerHTML = "";
+    activeChatPane.classList.remove("active");
+    chatPlaceholderView.style.display = "flex";
+  }
+
   function renderChatSidebar() {
     inboxUserList.innerHTML = "";
-
     if (state.activeChatUserId && getConnectionStatus(state.activeChatUserId) !== "matched") {
       clearActiveChat();
     }
-
-    const matchedProfiles = state.profiles.filter(p => getConnectionStatus(p.id) === "matched");
-
-    if (matchedProfiles.length === 0) {
+    const matchedPeers = state.connections.matched.map(c => c.peer).filter(Boolean);
+    if (matchedPeers.length === 0) {
       clearActiveChat();
-      inboxUserList.innerHTML = `
-        <li class="chat-empty-state">
-          <i class="fa-solid fa-lock"></i>
-          <span>No accepted matches yet.</span>
-        </li>
-      `;
+      inboxUserList.innerHTML = `<li class="chat-empty-state"><i class="fa-solid fa-lock"></i><span>No accepted matches yet.</span></li>`;
       return;
     }
-
-    matchedProfiles.forEach(p => {
-      ensureConversation(p.id);
-      const firstLetter = p.name.charAt(0);
-      const isSelected = state.activeChatUserId === p.id;
-      const lastMsgObj = state.conversations[p.id][state.conversations[p.id].length - 1];
-      const lastMsgText = lastMsgObj ? lastMsgObj.text : "...";
-
+    matchedPeers.forEach(p => {
+      const messages = state.conversations[p.profileId] || [];
+      const last = messages[messages.length - 1];
+      const lastMsgText = last ? last.text : "Start a sacred conversation...";
+      const isSelected = state.activeChatUserId === p.profileId;
       const li = document.createElement("li");
-      li.className = `chat-user-item ${isSelected ? 'active' : ''}`;
+      li.className = `chat-user-item ${isSelected ? "active" : ""}`;
       li.innerHTML = `
-        <div class="chat-avatar bg-gradient-to-br ${p.avatarColor}">${firstLetter}</div>
+        <div class="chat-avatar bg-gradient-to-br ${p.avatarColor || ""}">${(p.name || "?").charAt(0)}</div>
         <div class="chat-user-details">
-          <span class="chat-user-name">${p.name}</span>
-          <span class="chat-user-sub">${lastMsgText}</span>
+          <span class="chat-user-name">${escapeHtml(p.name || "")}</span>
+          <span class="chat-user-sub">${escapeHtml(lastMsgText)}</span>
         </div>
       `;
-
-      li.addEventListener("click", () => selectChatUser(p.id));
+      li.addEventListener("click", () => selectChatUser(p.profileId));
       inboxUserList.appendChild(li);
     });
   }
@@ -1566,133 +1284,65 @@ document.addEventListener("DOMContentLoaded", () => {
       selectChatUser(state.activeChatUserId);
       return;
     }
-
-    const firstMatch = state.profiles.find(p => getConnectionStatus(p.id) === "matched");
-    if (firstMatch) {
-      selectChatUser(firstMatch.id);
-    } else {
-      clearActiveChat();
-    }
+    const first = state.connections.matched[0] && state.connections.matched[0].peer;
+    if (first) selectChatUser(first.profileId);
+    else clearActiveChat();
   }
 
-  function renderConnectionRequests() {
-    const incomingProfiles = state.profiles.filter(p => getConnectionStatus(p.id) === "incoming");
-    const sentProfiles = state.profiles.filter(p => getConnectionStatus(p.id) === "sent");
-
-    incomingRequestList.innerHTML = "";
-    sentRequestList.innerHTML = "";
-
-    if (incomingProfiles.length === 0) {
-      incomingRequestList.innerHTML = `
-        <div class="request-empty">
-          <i class="fa-solid fa-inbox"></i>
-          <span>No received requests.</span>
-        </div>
-      `;
-    } else {
-      incomingProfiles.forEach(profile => {
-        incomingRequestList.appendChild(createRequestItem(profile, "incoming"));
-      });
-    }
-
-    if (sentProfiles.length === 0) {
-      sentRequestList.innerHTML = `
-        <div class="request-empty">
-          <i class="fa-solid fa-paper-plane"></i>
-          <span>No sent requests.</span>
-        </div>
-      `;
-    } else {
-      sentProfiles.forEach(profile => {
-        sentRequestList.appendChild(createRequestItem(profile, "sent"));
-      });
-    }
-
-    updateJourneyStats();
-  }
-
-  function createRequestItem(profile, type) {
-    const item = document.createElement("div");
-    item.className = "request-item";
-    item.innerHTML = `
-      <div class="chat-avatar bg-gradient-to-br ${profile.avatarColor}">${profile.name.charAt(0)}</div>
-      <div class="request-details">
-        <span class="request-name">${profile.name}</span>
-        <span class="request-sub">${profile.age} Yrs - ${profile.spiritualPath}</span>
-      </div>
-      <div class="request-actions"></div>
-    `;
-
-    const actions = item.querySelector(".request-actions");
-    if (type === "incoming") {
-      const acceptBtn = document.createElement("button");
-      acceptBtn.className = "request-btn accept";
-      acceptBtn.innerHTML = `<i class="fa-solid fa-check"></i>`;
-      acceptBtn.title = "Accept request";
-      acceptBtn.addEventListener("click", () => acceptConnectionRequest(profile.id));
-
-      const declineBtn = document.createElement("button");
-      declineBtn.className = "request-btn decline";
-      declineBtn.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
-      declineBtn.title = "Decline request";
-      declineBtn.addEventListener("click", () => declineConnectionRequest(profile.id));
-
-      actions.appendChild(acceptBtn);
-      actions.appendChild(declineBtn);
-    } else {
-      const pendingBadge = document.createElement("span");
-      pendingBadge.className = "request-pending";
-      pendingBadge.textContent = "Pending";
-
-      const withdrawBtn = document.createElement("button");
-      withdrawBtn.className = "request-btn decline";
-      withdrawBtn.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
-      withdrawBtn.title = "Withdraw request";
-      withdrawBtn.addEventListener("click", () => withdrawConnectionRequest(profile.id));
-
-      actions.appendChild(pendingBadge);
-      actions.appendChild(withdrawBtn);
-    }
-
-    return item;
-  }
-
-  function selectChatUser(profileId) {
+  async function selectChatUser(profileId) {
     if (getConnectionStatus(profileId) !== "matched") {
       clearActiveChat();
       alert("Chat is locked until the connection request is accepted and this profile becomes a match.");
       return;
     }
-
     state.activeChatUserId = profileId;
-    ensureConversation(profileId);
-    
-    // Highlight list visually
-    const items = document.querySelectorAll(".chat-user-item");
-    items.forEach(el => el.classList.remove("active"));
-    
-    renderChatSidebar(); // Re-render to highlight active and show last messages
+    const peer = (getConnectionByPeer(profileId) || {}).peer;
+    if (!peer) return;
 
-    const candidate = state.profiles.find(p => p.id === profileId);
-    if (!candidate) return;
-
-    // Swap panes
     chatPlaceholderView.style.display = "none";
     activeChatPane.classList.add("active");
 
-    // Populate Headers
-    activeChatAvatar.className = `chat-avatar bg-gradient-to-br ${candidate.avatarColor}`;
-    activeChatAvatar.innerText = candidate.name.charAt(0);
-    activeChatName.innerText = candidate.name;
-    activeChatStatus.innerText = `${candidate.spiritualPath} Devotee`;
+    activeChatAvatar.className = `chat-avatar bg-gradient-to-br ${peer.avatarColor || ""}`;
+    activeChatAvatar.innerText = (peer.name || "?").charAt(0);
+    activeChatName.innerText = peer.name || "";
+    activeChatStatus.innerText = `${peer.spiritualPath || ""} Devotee`;
 
+    // Initial fetch (full history)
+    state.conversations[profileId] = [];
+    state.lastMessageId[profileId] = "";
+    await fetchMessagesFor(profileId);
+    renderChatSidebar();
     renderChatStream();
+
+    startChatPolling();
+  }
+
+  async function fetchMessagesFor(profileId) {
+    try {
+      const cursor = state.lastMessageId[profileId];
+      const url = `/api/messages/${encodeURIComponent(profileId)}${cursor ? `?since=${encodeURIComponent(cursor)}` : ""}`;
+      const data = await api(url);
+      const incoming = Array.isArray(data.messages) ? data.messages : [];
+      if (!state.conversations[profileId]) state.conversations[profileId] = [];
+      incoming.forEach(m => {
+        state.conversations[profileId].push({
+          id: m.id,
+          sender: m.sender === state.me.profileId ? "me" : "them",
+          text: m.text,
+          time: new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        });
+        state.lastMessageId[profileId] = m.id;
+      });
+      return incoming.length;
+    } catch (error) {
+      if (error.status !== 403) console.warn("fetchMessages failed:", error.message);
+      return 0;
+    }
   }
 
   function renderChatStream() {
     chatMessageStream.innerHTML = "";
     const messages = state.conversations[state.activeChatUserId] || [];
-
     messages.forEach(msg => {
       const bubble = document.createElement("div");
       const bubbleType = msg.sender === "system" ? "system" : (msg.sender === "me" ? "outgoing" : "incoming");
@@ -1700,9 +1350,20 @@ document.addEventListener("DOMContentLoaded", () => {
       bubble.innerText = msg.text;
       chatMessageStream.appendChild(bubble);
     });
-
-    // Auto scroll message pane to bottom
     chatMessageStream.scrollTop = chatMessageStream.scrollHeight;
+  }
+
+  function startChatPolling() {
+    stopChatPolling();
+    state.chatPollTimer = setInterval(async () => {
+      if (!state.activeChatUserId) { stopChatPolling(); return; }
+      const newCount = await fetchMessagesFor(state.activeChatUserId);
+      if (newCount > 0) { renderChatStream(); renderChatSidebar(); }
+    }, 5000);
+  }
+
+  function stopChatPolling() {
+    if (state.chatPollTimer) { clearInterval(state.chatPollTimer); state.chatPollTimer = null; }
   }
 
   function startDirectChat(profileId) {
@@ -1710,15 +1371,11 @@ document.addEventListener("DOMContentLoaded", () => {
       handleConnectionAction(profileId);
       return;
     }
-
     state.activeChatUserId = profileId;
-    ensureConversation(profileId);
     switchView("view-chat");
-    selectChatUser(profileId);
   }
 
-  // SENDING CHAT MESSAGES
-  function sendMessage() {
+  async function sendMessage() {
     const text = chatUserTextbox.value.trim();
     if (!text || !state.activeChatUserId) return;
     if (getConnectionStatus(state.activeChatUserId) !== "matched") {
@@ -1726,71 +1383,34 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Messages are enabled only after both sides accept the connection request.");
       return;
     }
-
-    // Add outgoing message bubble
-    ensureConversation(state.activeChatUserId);
-    const userMsg = { sender: "me", text: text, time: "Just now" };
-    state.conversations[state.activeChatUserId].push(userMsg);
-    renderChatStream();
     chatUserTextbox.value = "";
-    
-    // Sync sidebar quick message snippet
-    renderChatSidebar();
-
-    // Trigger typing response simulation
-    simulateTypingAndResponse(text);
+    try {
+      const data = await api(`/api/messages/${encodeURIComponent(state.activeChatUserId)}`, { method: "POST", body: { text } });
+      const msg = data.message;
+      if (msg) {
+        state.conversations[state.activeChatUserId] = state.conversations[state.activeChatUserId] || [];
+        state.conversations[state.activeChatUserId].push({
+          id: msg.id,
+          sender: "me",
+          text: msg.text,
+          time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        });
+        state.lastMessageId[state.activeChatUserId] = msg.id;
+        renderChatStream();
+        renderChatSidebar();
+      }
+      // Bot replies come on the next poll tick (~5s)
+    } catch (error) {
+      alert(error.message || "Could not send message.");
+    }
   }
 
   btnSendChat.addEventListener("click", sendMessage);
-  chatUserTextbox.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") sendMessage();
-  });
+  chatUserTextbox.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
 
-  // TYPING CUES & SMART SPIRITUAL RESPONSES
-  function simulateTypingAndResponse(userText) {
-    const activeId = state.activeChatUserId;
-    const candidate = state.profiles.find(p => p.id === activeId);
-    if (!candidate || getConnectionStatus(activeId) !== "matched") return;
-
-    // Show indicator after delay
-    setTimeout(() => {
-      // Verify user hasn't switched chats during this delay
-      if (state.activeChatUserId === activeId && getConnectionStatus(activeId) === "matched") {
-        chatTypingIndicator.style.display = "flex";
-        chatMessageStream.scrollTop = chatMessageStream.scrollHeight;
-      }
-    }, 600);
-
-    // Respond after typing delay complete
-    setTimeout(() => {
-      if (state.activeChatUserId === activeId && getConnectionStatus(activeId) === "matched") {
-        // Hide typing indicator
-        chatTypingIndicator.style.display = "none";
-
-        // Select response based on keywords or cycle through standard profile comments
-        let replyText = "";
-        const lowerText = userText.toLowerCase();
-
-        if (lowerText.includes("sadhana") || lowerText.includes("meditation") || lowerText.includes("practice") || lowerText.includes("pray")) {
-          replyText = `Regarding my spiritual schedule: ${candidate.sadhana} I believe staying dedicated to these practices is highly grounding.`;
-        } else if (lowerText.includes("diet") || lowerText.includes("food") || lowerText.includes("eat")) {
-          replyText = `Regarding my diet, I strictly follow: ${candidate.diet}. Having a clean, pure body supports a pure spiritual mind!`;
-        } else if (lowerText.includes("guru") || lowerText.includes("deity") || lowerText.includes("god")) {
-          replyText = `I draw deep daily inspiration from ${candidate.deity}. The path of ${candidate.spiritualPath} has opened my eyes to this connection.`;
-        } else {
-          // Cycle through predefined spiritual comments from the profile object
-          const randIdx = Math.floor(Math.random() * candidate.chatResponses.length);
-          replyText = candidate.chatResponses[randIdx];
-        }
-
-        const replyMsg = { sender: "them", text: replyText, time: "Just now" };
-        state.conversations[activeId].push(replyMsg);
-        
-        renderChatStream();
-        renderChatSidebar(); // Update sidebar message preview
-      }
-    }, 2200);
-  }
+  // ---------------------------------------------------------------------------
+  // Admin site settings (existing)
+  // ---------------------------------------------------------------------------
 
   function renderHeroTitle(titleText) {
     contentHeroTitle.innerHTML = "";
@@ -1807,14 +1427,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function setText(element, value) {
-    if (element) element.textContent = value || "";
-  }
-
   function applyAdminSettings() {
     const { content } = state.adminSettings;
     const brandName = content.brandName || DEFAULT_ADMIN_SETTINGS.content.brandName;
-
     document.title = `${brandName} - Divine Union of Souls`;
     setText(siteLogoText, brandName);
     setText(contentHeroTagline, content.heroTagline);
@@ -1831,27 +1446,20 @@ document.addEventListener("DOMContentLoaded", () => {
     setText(contentFooterBrand, brandName);
     setText(contentFooterDescription, content.footerDescription);
     setText(contentFooterBottom, `(c) ${new Date().getFullYear()} ${brandName}. Evolving Companionship, Elevating Consciousness. Built for Divine Unions.`);
-
     renderPlanCards();
     updateJourneyStats();
   }
 
   async function loadServerAdminSettings() {
-    if (!isHttpRuntime()) return;
-
     try {
-      const response = await fetch("/api/settings", {
-        cache: "no-store",
-        credentials: "same-origin"
-      });
+      const response = await fetch("/api/settings", { cache: "no-store", credentials: "same-origin" });
       if (!response.ok) return;
-
       const serverSettings = await response.json();
       state.adminSettings = deepMerge(DEFAULT_ADMIN_SETTINGS, serverSettings);
       writeJsonToStorage(STORAGE_KEYS.adminSettings, state.adminSettings);
       applyAdminSettings();
     } catch (error) {
-      console.warn("Unable to load server settings. Using browser settings fallback.", error);
+      console.warn("Unable to load server settings.", error);
     }
   }
 
@@ -1860,11 +1468,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const card = document.querySelector(`[data-plan-card="${planKey}"]`);
       const button = document.querySelector(`[data-plan-action="${planKey}"]`);
       if (!card) return;
-
       const planName = card.querySelector(".tier-name");
       const planPrice = card.querySelector(".tier-price");
       setText(planName, plan.name);
-
       if (planPrice) {
         planPrice.innerHTML = "";
         planPrice.appendChild(document.createTextNode(`${plan.price} `));
@@ -1872,10 +1478,7 @@ document.addEventListener("DOMContentLoaded", () => {
         period.textContent = plan.period;
         planPrice.appendChild(period);
       }
-
-      if (button) {
-        button.textContent = `Choose ${plan.name.split(" ")[0]}`;
-      }
+      if (button) button.textContent = `Choose ${plan.name.split(" ")[0]}`;
     });
   }
 
@@ -1889,29 +1492,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const plan = state.adminSettings.plans[planKey];
     const payment = state.adminSettings.payment;
     if (!plan) return;
-
     alert(
-      `${plan.name}\n` +
-      `${plan.price} ${plan.period}\n\n` +
-      `Provider: ${payment.provider} (${payment.mode})\n` +
-      `Currency: ${payment.currency}\n` +
-      `Public key: ${maskCredential(payment.publicKey)}\n\n` +
-      `${payment.checkoutNote}`
+      `${plan.name}\n${plan.price} ${plan.period}\n\n` +
+      `Provider: ${payment.provider} (${payment.mode})\nCurrency: ${payment.currency}\n` +
+      `Public key: ${maskCredential(payment.publicKey)}\n\n${payment.checkoutNote}`
     );
   }
-
   document.querySelectorAll("[data-plan-action]").forEach(button => {
-    button.addEventListener("click", () => {
-      handlePlanCheckout(button.getAttribute("data-plan-action"));
-    });
+    button.addEventListener("click", () => handlePlanCheckout(button.getAttribute("data-plan-action")));
   });
 
-  // --- INITIAL FEED LAUNCH ---
-  hydrateSessionAccount();
+  // ---------------------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------------------
+
   applyAdminSettings();
   loadServerAdminSettings();
-  updateAuthUI();
-  updateWizardSteps();
-  renderConnectionRequests();
-  switchView("view-landing"); // Always land on hero index first
+  refreshMe().then(async () => {
+    await refreshConnections();
+    updateAuthUI();
+    updateWizardSteps();
+    renderConnectionRequests();
+    switchView("view-landing");
+  });
 });
